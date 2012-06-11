@@ -161,37 +161,57 @@ string readline(int fd) {
 	return string(linebuf,linelength);
 }
 
-int readstatus(int fd) {
-	string s = readline(fd);
-	stringstream ss(s);
+inline bool iswhitespace(char c) {
+	return c == '\n' || c == '\r' || c == ' ' || c == '\t';
+}
+
+inline bool iscrorlf(char c) {
+	return c == '\r' || c == '\n';
+}
+
+int atoin(char *c,size_t len) {
+	// This is bullshit.
+	char e = c[len];
+	c[len] = '\0';
+	int result = atoi(c);
+	c[len] = e;
+	return result;
+}
+
+int readstatus(bufferedstream &s) {
+	s.ensure(4);
 	int result = 0;
-	ss >> result;
+	if (s.ptr()[3] == ' ' || s.ptr()[3] == '\r' || s.ptr()[3] == '\n') {
+		result = atoin(s.ptr(), 3);
+	} else {
+		DIE();
+	}
+	s.takeline();
 	return result;
 }
 
 struct Header {
-	string name;
-	string value;
-	Header() { }
-	Header(string name, string value) : name(name), value(value) { }
+	str name;
+	str value;
+	Header() : name(), value() { }
+	Header(str name, str value) : name(name), value(value) { }
 };
-optional<Header> readheader(int fd) {
-	static char linebuf[1024];
-	int linelen = creadline(fd,socketbuffer,linebuf,1024);
-	if (linelen == 0) {
-		return optional<Header>();
-	}
-	for(int i=0;i<linelen;i++) {
-		if (linebuf[i] == ':') {
-			linebuf[i] = '\0';
-			string name = string(linebuf,i);
-			i++;
-			while(linebuf[i] == ' ') { i++; }
-			string value = string(&(linebuf[i]),linelen-i);
-			return optional<Header>(Header(name,value));
+const section readheader(bufferedstream &s, Header &header) {
+	const section r = s.getline();
+	if (r.len <= 2)
+		return r;
+	for(int i=0;i<r.len;i++) {
+		if (s[i] == ':') {
+			str name = str(s.ptr(),i);
+			i++; while(iswhitespace(s[i])) { i++; }
+			int j = r.len-1;
+			while(iswhitespace(s[j])) { j--; }
+			str value = str(&(s[i]),j-i+1);
+			header = Header(name,value);
+			return r;
 		}
 	}
-	return optional<Header>();
+	DIE();
 }
 
 void writeline(int fd, string s) {
@@ -230,6 +250,16 @@ T parseD(string s) {
 	return T();
 }
 
+template<typename T>
+T parseD(const char *s) {
+	return parseD<T>(string(s));
+}
+
+template<typename T>
+T parseD(str &s) {
+	return parseD<T>(string(s.ptr,s.len));
+}
+
 struct YEncHead {
 	int part;
 	int total;
@@ -252,11 +282,19 @@ struct KeyValue {
 	string value;
 };
 
+void breakpoint() {
+	printf("BREAK\n");
+}
+
 string filename = "";
 FILE * filehandle;
 int lastoffset;
+
+char changedbytes[10];
+int changedbytesi = 0;
 void handleByte(char c,int offset,YEncHead &head,YEncPart &part) {
-	if (head.name.compare(filename) != 0) {
+	/*if (head.name.compare(filename) != 0) {
+		printf("file: %s\n",head.name.c_str());
 		if (!filename.empty()) {
 			fclose(filehandle);
 		}
@@ -264,108 +302,219 @@ void handleByte(char c,int offset,YEncHead &head,YEncPart &part) {
 		filehandle = fopen(filename.c_str(), "w");
 		lastoffset = 0;
 	}
-	fwrite(&c, sizeof(char), 1, filehandle);
-}
-
-optional<KeyValue> readKeyValue(string s,int& i) {
-	KeyValue result;
-	optional<int> r = indexOf(s,'=',i);
-	if (!r.hasValue()) { return optional<KeyValue>(); }
-	result.key = s.substr(i,r.value()-i);
-	i=r.value()+1;
-	if ((r = indexOf(s,' ',r.value())).hasValue()) {
-		result.value = s.substr(i,r.value()-i);
-		i=r.value()+1;
-	} else {
-		result.value = s.substr(i);
-		i=s.length();
+	fwrite(&c, sizeof(char), 1, filehandle);*/
+	if (head.name.compare(filename) != 0) {
+		printf("file: %s\n",head.name.c_str());
+		if (!filename.empty()) {
+			fclose(filehandle);
+		}
+		filename = head.name;
+		filehandle = fopen(("/media/data/projects/nzbgetweb/files/test/"+filename).c_str(), "r");
+		lastoffset = 0;
 	}
-	return optional<KeyValue>(result);
-}
-
-void readHeaders(int s) {
-	optional<Header> header;
-	while((header = readheader(s)).hasValue()) {
-		Header h = header.value();
-		//fprintf(stderr,"%s: %s\n", h.name.c_str(),h.value.c_str());
-		// TODO: Do something with headers.
+	//fwrite(&c, sizeof(char), 1, filehandle);
+	char compare;
+	fread(&compare, sizeof(char), 1, filehandle);
+	lastoffset++;
+	if (compare != c || changedbytesi > 0) {
+		changedbytes[changedbytesi] = c;
+		changedbytesi++;
+		if (changedbytesi == 1) {
+			breakpoint();
+		}
 	}
 }
 
-void readYBegin(int s, YEncHead &yencHead) { // Parsing ybegin
-	string dataline = readline(s);
-	if (!startsWith(dataline, "=ybegin ")) {
-		DIE();
+char *strnchr(char *str, size_t len, char c) {
+	for(int i=0;i<len;i++)
+		if (str[i] == c)
+			return str+i;
+	return NULL;
+}
+
+size_t indexOf(char *str, size_t len, char c) {
+	size_t i;
+	for(i=0;i<len;i++)
+		if (str[i] == c)
+			return i;
+	return i;
+}
+
+size_t indexOf(str s, char c) {
+	size_t i;
+	for(i=0;i<s.len;i++)
+		if (s.ptr[i] == c)
+			return i;
+	return i;
+}
+
+size_t indexOf(str s, int clen, const char *c) {
+	size_t i;
+	for(i=0;i<s.len;i++)
+		for(int j=0;j<clen;j++) {
+			if (s.ptr[i] == c[j]) {
+				return i;
+			}
+		}
+	return i;
+}
+
+size_t indexOfWhitespace(str s) {
+	return indexOf(s,5," \t\r\n");
+}
+
+const section readKeyValue(bufferedstream &s, Header &header) {
+	s.takewhile(' ');
+	s.ensure(2);
+	if (iscrorlf(*s.ptr())) {
+		header = Header();
+		return s.getline();
 	}
-	optional<KeyValue> okv; int i = 8;
-	while ((okv = readKeyValue(dataline,i)).hasValue()) {
-		KeyValue kv = okv.value();
-		if (kv.key.compare("part") == 0) { yencHead.part = parseD<int>(kv.value); }
-		else if (kv.key.compare("line") == 0) { yencHead.line = parseD<int>(kv.value); }
-		else if (kv.key.compare("size") == 0) { yencHead.size = parseD<int>(kv.value); }
-		else if (kv.key.compare("total") == 0) { yencHead.total = parseD<int>(kv.value); }
-		else if (kv.key.compare("name") == 0) { yencHead.name = kv.value; /* TODO: Fix? */ }
+	const section r = s.getuntilanyE(" \r\n");
+	str name = str(s.ptr(), indexOf(s.ptr(),r.len,'='));
+	char *svalue = s.ptr()+name.len+1;
+	str value = str(svalue,indexOfWhitespace(str(svalue,r.len-name.len-1)));
+
+	header = Header(name,value);
+	return r;
+}
+
+void readHeaders(bufferedstream &s) {
+	while(true) {
+		Header header;
+		const section sc = readheader(s, header);
+		if (header.name.len == 0) {
+			s.release(sc);
+			break;
+		}
+		printf("%.*s: %.*s\n",header.name.len,header.name.ptr, header.value.len,header.value.ptr);
+		s.release(sc);
 	}
 }
 
-void readYPart(int s,YEncPart &yencPart) { // Parsing ypart
-	string dataline = readline(s);
-	if (!startsWith(dataline, "=ypart ")) {
-		DIE();
+bool readYBegin(bufferedstream &s, YEncHead &yencHead) { // Parsing ybegin
+	printf("readYBegin\n");
+	s.ensure(8);
+	if (strncmp(s.ptr(),"=ybegin ",8) != 0) {
+		return false;
 	}
-	optional<KeyValue> okv; int i = 7;
-	while ((okv = readKeyValue(dataline,i)).hasValue()) {
-		KeyValue kv = okv.value();
-		if (kv.key.compare("begin") == 0) { yencPart.begin = parseD<int>(kv.value); }
-		else if (kv.key.compare("end") == 0) { yencPart.end = parseD<int>(kv.value); }
+	s.take(8);
+	while (true) {
+		Header header;
+		const section sc = readKeyValue(s, header);
+		if (header.name.len == 0) {
+			s.release(sc);
+			return true;
+		}
+		if (header.name.equals("part")) { yencHead.part = parseD<int>(header.value); }
+		else if (header.name.equals("line")) { yencHead.line = parseD<int>(header.value); }
+		else if (header.name.equals("size")) { yencHead.size = parseD<int>(header.value); }
+		else if (header.name.equals("total")) { yencHead.total = parseD<int>(header.value); }
+		else if (header.name.equals("name")) { yencHead.name = string(header.value.ptr,header.value.len); /* TODO: Fix? */ }
+
+		s.release(sc);
 	}
 }
 
+bool readYPart(bufferedstream &s,YEncPart &yencPart) { // Parsing ypart
+	printf("readYPart\n");
+	s.ensure(7);
+	if (strncmp(s.ptr(),"=ypart ",7) != 0) {
+		return false;
+	}
+	s.take(7);
+	while (true) {
+		Header header;
+		const section sc = readKeyValue(s, header);
+		if (header.name.len == 0) {
+			s.release(sc);
+			return true;
+		}
+
+		if (header.name.equals("begin")) { yencPart.begin = parseD<int>(header.value); }
+		else if (header.name.equals("end")) { yencPart.end = parseD<int>(header.value); }
+
+		s.release(sc);
+	}
+}
+
+bool readYEnd(bufferedstream &s,YEncEnd &yencEnd) { // Parsing ypart
+	s.ensure(6);
+	if (strncmp(s.ptr(),"=yend ",6) != 0) {
+		return false;
+	}
+	s.take(6);
+	while (true) {
+		Header header;
+		const section sc = readKeyValue(s, header);
+		if (header.name.len == 0) {
+			s.release(sc);
+			return true;
+		}
+		if (header.name.equals("crc32")) { yencEnd.crc32 = parseD<int>(header.value); }
+		s.release(sc);
+	}
+}
+
+bool endOfArticle(bufferedstream &s) {
+	s.ensure(3);
+	if (s[0] == '.') {
+
+		if (s[1] == '\n') {
+			s.take(2);
+			return true;
+		}
+		if (s[1] == '\r' && s[2] == '\n') {
+			s.take(3);
+			return true;
+		}
+	}
+	return false;
+}
 
 
-void readYEnc(int s, YEncHead &head, YEncPart &part) { // Parsing yEnc lines
+void readYEnc(bufferedstream &s, YEncHead &head, YEncPart &part) { // Parsing yEnc lines
 	int partSize = part.end - (part.begin - 1);
 	int offset = part.begin;
 	YEncEnd yencEnd;
 
 	unsigned long checksum = crc32_init();
+	bool eoa = false;
 
-	optional<char> oc;
-	while((oc = readchar(s, socketbuffer)).hasValue()) {
-		switch(oc.value()) {
+newline:
+	if (readYEnd(s, yencEnd)) {
+		// Do something.
+	}
+	if (endOfArticle(s)) {
+		return;
+	}
+	s.ensure(2);
+	if (s[0] == '.' && s[1] == '.') {
+		// A double dot at the beginning of a line is a dot escaped by another dot... (?!)
+		s.take(1);
+	}
+
+	while(!eoa) {
+		s.ensure(1);
+		switch(s[0]) {
 			case '\0': { DIE(); } break;
 			case '=': {
-
+				s.take(1);
+				s.ensure(1);
+				handleByte(s[0] - 64 - 42, offset, head, part);
 			} break;
-			case '\r': break;
+			case '\r': {
+				// Ignore \r
+			} break;
 			case '\n': {
-				const char *match = "=yend ";
-				int i;
-				for (i=0;i<6;i++) {
-					if (!(oc = readchar(s, socketbuffer)).hasValue()) {
-						DIE();
-					}
-					if (oc.value() != match[i]) { break; }
-				}
-				if (i == 6) { // "=yend " matched
-					string line = readline(s);
-					optional<KeyValue> okv; int i = 0;
-					while ((okv = readKeyValue(line,i)).hasValue()) {
-						KeyValue kv = okv.value();
-						if (kv.key.compare("crc32") == 0) { yencEnd.crc32 = strtoull(kv.value.c_str(), (char **)NULL, 16); }
-					}
-				} else if (i > 1) {
-					//handleByte(match[j] - 64 - 42, offset, head, part);
-					for(int j=0;j<i;j++) {
-						handleByte(match[j] - 64 - 42, offset, head, part);
-					}
-				}
+				s.take(1);
+				goto newline;
 			} break;
-			default:
-				handleByte(oc.value() - 42, offset, head, part);
-				break;
+			default: {
+				handleByte(s[0] - 42, offset, head, part);
+			} break;
 		}
-		oc = readchar(s, socketbuffer);
+		s.take(1);
 	}
 	checksum = crc32_finish(checksum);
 
@@ -378,9 +527,8 @@ void readYEnc(int s, YEncHead &head, YEncPart &part) { // Parsing yEnc lines
 int main(int argc, const char **args) {
 	Nzb *nzb = ParseNZB();
 
-	socketbuffer = Buffer();
-	int s = socket(AF_INET, SOCK_STREAM, 0);
-	if (s < 0) { DIE(); }
+	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0) { DIE(); }
 	
 	hostent* server = gethostbyname("eu.news.bintube.com");
 	if (server == NULL) {
@@ -393,17 +541,20 @@ int main(int argc, const char **args) {
 	bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
 	serv_addr.sin_port = htons(119);
 
-	if (connect(s,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
+	if (connect(fd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
 		DIE();
 	}
+
+	bufferedstream s(fd,4096);
+
 	if (readstatus(s) != 200) {
 		DIE();
 	}
-	writeline(s,"AUTHINFO USER Afosick");
+	writeline(fd,"AUTHINFO USER Afosick");
 	if (readstatus(s) != 381) {
 		DIE();
 	}
-	writeline(s,"AUTHINFO PASS m96xn7");
+	writeline(fd,"AUTHINFO PASS m96xn7");
 	if (readstatus(s) != 281) {
 		DIE();
 	}
@@ -413,7 +564,7 @@ int main(int argc, const char **args) {
 	for(int i=0;i<files.size();i++) {
 		File &file = *files[i];
 		string group = file.groups[0];
-		writeline(s,"GROUP "+group);
+		writeline(fd,"GROUP "+group);
 		if (readstatus(s) != 211) {
 			DIE();
 		}
@@ -422,7 +573,7 @@ int main(int argc, const char **args) {
 		for(int j=0;j<segments.size();j++) {
 			Segment &segment = *segments[j];
 
-			writeline(s,"ARTICLE <"+segment.article+">");
+			writeline(fd,"ARTICLE <"+segment.article+">");
 			if (readstatus(s) != 220) {
 				DIE();
 			}
@@ -430,21 +581,19 @@ int main(int argc, const char **args) {
 			readHeaders(s);
 
 			YEncHead yencHead;
-			readYBegin(s,yencHead);
-
-			YEncPart yencPart;
-			readYPart(s,yencPart);
-
-			readYEnc(s,yencHead,yencPart);
-
-			string dot = readline(s);
-			if (dot != ".") {
-				//printf("%s\n",dot.c_str());
+			if (!readYBegin(s,yencHead)) {
 				DIE();
 			}
+
+			YEncPart yencPart;
+			if (!readYPart(s,yencPart)) {
+				DIE();
+			}
+
+			readYEnc(s,yencHead,yencPart);
 		}
 	}
 }
-	close(s);
+	close(fd);
 	return 0;
 }

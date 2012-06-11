@@ -1,6 +1,6 @@
 CC=clang++
-CFLAGS=-I/usr/include/libxml2 -Wl,-t -v
-LDFLAGS=-fPIC -lpthread -lexpat -lxml2 -lvrb -Wl,-t -Wl,-v -v
+CFLAGS=-g -I/usr/include/libxml2 -Wl,-t -v
+LDFLAGS=-g -fPIC -lpthread -lexpat -lxml2 -lvrb -Wl,-t -Wl,-v -v
 OBJ=main.o crc32.o 
 
 all: main
