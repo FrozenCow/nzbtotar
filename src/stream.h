@@ -7,7 +7,7 @@ extern "C" {
 }
 #include "common.h"
 
-#define DEBUG 1
+//#define CHECK_STREAM 1
 
 struct str {
 	const char *ptr;
@@ -43,7 +43,7 @@ struct str {
 class bufferedstream;
 struct section {
 	size_t len;
-#ifdef DEBUG
+#ifdef CHECK_STREAM
 	char *ptr;
 	bufferedstream *s;
 	inline section() : len(0), ptr(NULL), s(NULL) { }
@@ -67,7 +67,7 @@ public:
 		vrb_destroy(b);
 	}
 	char& operator[](const size_t i) {
-#ifdef DEBUG
+#ifdef CHECK_STREAM
 		if (i >= len()) {
 			DIE();
 		}
@@ -91,7 +91,7 @@ public:
 		return readMin(min, ~0);
 	}
 	inline bool take(size_t n) {
-#ifdef DEBUG
+#ifdef CHECK_STREAM
 		if (n > len()) {
 			DIE();
 		} 
@@ -151,7 +151,7 @@ public:
 	}
 	inline const section get(size_t len) {
 		ensure(len);
-#ifdef DEBUG
+#ifdef CHECK_STREAM
 		return section(this,ptr(),len);
 #else
 		return section(len);
@@ -213,7 +213,7 @@ public:
 		return getuntilI('\n');
 	}
 	inline void release(const section &s) {
-#ifdef DEBUG
+#ifdef CHECK_STREAM
 		if (s.s != this || s.ptr != ptr()) {
 			DIE();
 		}

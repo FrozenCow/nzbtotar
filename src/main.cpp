@@ -387,13 +387,12 @@ void readHeaders(bufferedstream &s) {
 			s.release(sc);
 			break;
 		}
-		printf("%.*s: %.*s\n",header.name.len,header.name.ptr, header.value.len,header.value.ptr);
+		//printf("%.*s: %.*s\n",header.name.len,header.name.ptr, header.value.len,header.value.ptr);
 		s.release(sc);
 	}
 }
 
 bool readYBegin(bufferedstream &s, YEncHead &yencHead) { // Parsing ybegin
-	printf("readYBegin\n");
 	s.ensure(8);
 	if (strncmp(s.ptr(),"=ybegin ",8) != 0) {
 		return false;
@@ -417,7 +416,6 @@ bool readYBegin(bufferedstream &s, YEncHead &yencHead) { // Parsing ybegin
 }
 
 bool readYPart(bufferedstream &s,YEncPart &yencPart) { // Parsing ypart
-	printf("readYPart\n");
 	s.ensure(7);
 	if (strncmp(s.ptr(),"=ypart ",7) != 0) {
 		return false;
@@ -459,7 +457,6 @@ bool readYEnd(bufferedstream &s,YEncEnd &yencEnd) { // Parsing ypart
 bool endOfArticle(bufferedstream &s) {
 	s.ensure(3);
 	if (s[0] == '.') {
-
 		if (s[1] == '\n') {
 			s.take(2);
 			return true;
@@ -479,53 +476,45 @@ void readYEnc(bufferedstream &s, YEncHead &head, YEncPart &part) { // Parsing yE
 	YEncEnd yencEnd;
 
 	unsigned long checksum = crc32_init();
-	bool eoa = false;
 
 newline:
-	if (readYEnd(s, yencEnd)) {
-		// Do something.
-	}
-	if (endOfArticle(s)) {
-		return;
-	}
+	// Handle escaped dots at beginning of lines.
 	s.ensure(2);
 	if (s[0] == '.' && s[1] == '.') {
-		// A double dot at the beginning of a line is a dot escaped by another dot... (?!)
+		s.take(1);
+	} else {
+		if (endOfArticle(s)) {
+			goto endofenc;
+		}
+
+		if (readYEnd(s, yencEnd)) {
+			goto newline;
+		}
+	}
+
+	while(true) {
+		s.ensure(1);
+		if (s[0] == '\0') { DIE(); } // Incorrect character
+		if (s[0] == '\r') { s.take(1); continue; } // Ignore return-character
+		if (s[0] == '\n') { s.take(1); goto newline; } // Handle new lines
+		if (s[0] == '=') { s.take(1); s.ensure(1); s[0] -= 64; }
+		s[0] -= 42;
+		checksum = crc32_add(checksum, s[0]);
+		handleByte(s[0], offset, head, part);
+
 		s.take(1);
 	}
 
-	while(!eoa) {
-		s.ensure(1);
-		switch(s[0]) {
-			case '\0': { DIE(); } break;
-			case '=': {
-				s.take(1);
-				s.ensure(1);
-				handleByte(s[0] - 64 - 42, offset, head, part);
-			} break;
-			case '\r': {
-				// Ignore \r
-			} break;
-			case '\n': {
-				s.take(1);
-				goto newline;
-			} break;
-			default: {
-				handleByte(s[0] - 42, offset, head, part);
-			} break;
-		}
-		s.take(1);
-	}
+endofenc:
 	checksum = crc32_finish(checksum);
 
-	// TODO: Fix crc32
-	if (yencEnd.crc32 != checksum) {
+	if (yencEnd.crc32 != 0 && yencEnd.crc32 != checksum) {
 		DIE();
 	}
 }
 
 int main(int argc, const char **args) {
-	Nzb *nzb = ParseNZB();
+	Nzb *nzb = ParseNZB("test.nzb");
 
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) { DIE(); }

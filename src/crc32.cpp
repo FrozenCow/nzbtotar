@@ -40,20 +40,9 @@
  * CRC32 code derived from work by Gary S. Brown.
  */
 
-#include <stdlib.h>
-
-#ifdef WIN32
-#	include "compat/stdint.h"
-#else
-#	include <stdint.h>
-#endif
-
 #include "crc32.h"
 
-
-
-uint32_t
-crc32(const char *buf, size_t size)
+uint32_t crc32(const char *buf, size_t size)
 {
 	uint32_t crc, i;
 
