@@ -360,14 +360,14 @@ inline void PPM_CONTEXT::decodeBinSymbol(ModelPPM *Model)
     rs.Freq += (rs.Freq < 128);
     Model->Coder.SubRange.LowCount=0;
     Model->Coder.SubRange.HighCount=bs;
-    bs = SHORT16(bs+INTERVAL-GET_MEAN(bs,PERIOD_BITS,2));
+    bs = GET_SHORT16(bs+INTERVAL-GET_MEAN(bs,PERIOD_BITS,2));
     Model->PrevSuccess=1;
     Model->RunLength++;
   } 
   else 
   {
     Model->Coder.SubRange.LowCount=bs;
-    bs = SHORT16(bs-GET_MEAN(bs,PERIOD_BITS,2));
+    bs = GET_SHORT16(bs-GET_MEAN(bs,PERIOD_BITS,2));
     Model->Coder.SubRange.HighCount=BIN_SCALE;
     Model->InitEsc=ExpEscape[bs >> 10];
     Model->NumMasked=1;
@@ -400,7 +400,7 @@ inline bool PPM_CONTEXT::decodeSymbol1(ModelPPM *Model)
   STATE* p=U.Stats;
   int i, HiCnt;
   int count=Model->Coder.GetCurrentCount();
-  if (count>=Model->Coder.SubRange.scale)
+  if (count>=(int)Model->Coder.SubRange.scale)
     return(false);
   if (count < (HiCnt=p->Freq)) 
   {
@@ -489,7 +489,7 @@ inline bool PPM_CONTEXT::decodeSymbol2(ModelPPM *Model)
   } while ( --i );
   Model->Coder.SubRange.scale += HiCnt;
   count=Model->Coder.GetCurrentCount();
-  if (count>=Model->Coder.SubRange.scale)
+  if (count>=(int)Model->Coder.SubRange.scale)
     return(false);
   p=*(pps=ps);
   if (count < HiCnt) 
@@ -540,7 +540,7 @@ void ModelPPM::CleanUp()
 bool ModelPPM::DecodeInit(Unpack *UnpackRead,int &EscChar)
 {
   int MaxOrder=UnpackRead->GetChar();
-  bool Reset=MaxOrder & 0x20;
+  bool Reset=(MaxOrder & 0x20)!=0;
 
   int MaxMB;
   if (Reset)

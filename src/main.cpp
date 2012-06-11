@@ -20,6 +20,9 @@
 #include "crc32.h"
 #include "stream.h"
 
+#define _UNIX 1
+#include "unrar/dll.hpp"
+
 using namespace std;
 
 #define foreach(it, iterable) auto & cat(it,__LINE__) = iterable; for(auto it = cat(it,__LINE__).begin(); it != cat(it,__LINE__).end(); ++it)

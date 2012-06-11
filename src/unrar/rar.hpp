@@ -4,10 +4,10 @@
 #include "raros.hpp"
 #include "os.hpp"
 
-
 #ifdef RARDLL
 #include "dll.hpp"
 #endif
+
 
 #ifndef _WIN_CE
 #include "version.hpp"
@@ -15,14 +15,13 @@
 #include "rartypes.hpp"
 #include "rardefs.hpp"
 #include "rarlang.hpp"
-#include "int64.hpp"
 #include "unicode.hpp"
 #include "errhnd.hpp"
 #include "array.hpp"
 #include "timefn.hpp"
+#include "secpassword.hpp"
 #include "options.hpp"
 #include "headers.hpp"
-#include "rarfn.hpp"
 #include "pathfn.hpp"
 #include "strfn.hpp"
 #include "strlist.hpp"
@@ -44,19 +43,20 @@
 #include "filcreat.hpp"
 #include "consio.hpp"
 #include "system.hpp"
+#ifdef _WIN_ALL
 #include "isnt.hpp"
+#endif
 #include "log.hpp"
 #include "rawread.hpp"
 #include "encname.hpp"
 #include "resource.hpp"
 #include "compress.hpp"
 
-
 #include "rarvm.hpp"
 #include "model.hpp"
 
-
 #include "unpack.hpp"
+
 
 
 #include "extinfo.hpp"
@@ -65,7 +65,6 @@
 
 
 #include "list.hpp"
-
 
 
 #include "rs.hpp"
