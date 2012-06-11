@@ -16,12 +16,15 @@
 #include <list>
 #include <vector>
 
-#include "nzbfetch/crc32.h"
+#include "common.h"
+#include "crc32.h"
+#include "stream.h"
 
 using namespace std;
 
-#define CHECK(r) if (r != 0) { fprintf(stderr, "Failed! %s:%d",__FILE__ ,__LINE__); exit(1); }
-#define DIE() { fprintf(stderr, "Failed! %s:%d",__FILE__ ,__LINE__); exit(1); }
+#define foreach(it, iterable) auto & cat(it,__LINE__) = iterable; for(auto it = cat(it,__LINE__).begin(); it != cat(it,__LINE__).end(); ++it)
+
+#include "nzbfile.cpp"
 
 // optional - either has a value of type T, or has no value at all
 template<typename T>
@@ -87,6 +90,7 @@ int readbuffer(int fd, Buffer &buffer) {
 }
 
 void printbytes(char *line) {
+	return;
 	while(line[0] != '\0') {
 		fprintf(stderr,"%02x ",line[0] & 0xff);
 		line++;
@@ -240,13 +244,28 @@ struct YEncPart {
 };
 
 struct YEncEnd {
-	uint32_t crc32;
+	unsigned long crc32;
 };
 
 struct KeyValue {
 	string key;
 	string value;
 };
+
+string filename = "";
+FILE * filehandle;
+int lastoffset;
+void handleByte(char c,int offset,YEncHead &head,YEncPart &part) {
+	if (head.name.compare(filename) != 0) {
+		if (!filename.empty()) {
+			fclose(filehandle);
+		}
+		filename = head.name;
+		filehandle = fopen(filename.c_str(), "w");
+		lastoffset = 0;
+	}
+	fwrite(&c, sizeof(char), 1, filehandle);
+}
 
 optional<KeyValue> readKeyValue(string s,int& i) {
 	KeyValue result;
@@ -268,7 +287,8 @@ void readHeaders(int s) {
 	optional<Header> header;
 	while((header = readheader(s)).hasValue()) {
 		Header h = header.value();
-		fprintf(stderr,"%s: %s\n", h.name.c_str(),h.value.c_str());
+		//fprintf(stderr,"%s: %s\n", h.name.c_str(),h.value.c_str());
+		// TODO: Do something with headers.
 	}
 }
 
@@ -302,67 +322,62 @@ void readYPart(int s,YEncPart &yencPart) { // Parsing ypart
 }
 
 
-void readYEnc(int s, YEncPart &part) { // Parsing yEnc lines
+
+void readYEnc(int s, YEncHead &head, YEncPart &part) { // Parsing yEnc lines
 	int partSize = part.end - (part.begin - 1);
+	int offset = part.begin;
 	YEncEnd yencEnd;
 
-	uint32_t checksum = crc32_init();
+	unsigned long checksum = crc32_init();
 
-	while(true) {
-		string line = readline(s);
-		if (startsWith(line, "=yend ")) {
-			optional<KeyValue> okv; int i = 6;
-			while ((okv = readKeyValue(line,i)).hasValue()) {
-				KeyValue kv = okv.value();
-				if (kv.key.compare("crc32") == 0) { yencEnd.crc32 = (uint32_t)strtoull(kv.value.c_str(), (char **)NULL, 16); }
-			}
-			break;
+	optional<char> oc;
+	while((oc = readchar(s, socketbuffer)).hasValue()) {
+		switch(oc.value()) {
+			case '\0': { DIE(); } break;
+			case '=': {
+
+			} break;
+			case '\r': break;
+			case '\n': {
+				const char *match = "=yend ";
+				int i;
+				for (i=0;i<6;i++) {
+					if (!(oc = readchar(s, socketbuffer)).hasValue()) {
+						DIE();
+					}
+					if (oc.value() != match[i]) { break; }
+				}
+				if (i == 6) { // "=yend " matched
+					string line = readline(s);
+					optional<KeyValue> okv; int i = 0;
+					while ((okv = readKeyValue(line,i)).hasValue()) {
+						KeyValue kv = okv.value();
+						if (kv.key.compare("crc32") == 0) { yencEnd.crc32 = strtoull(kv.value.c_str(), (char **)NULL, 16); }
+					}
+				} else if (i > 1) {
+					//handleByte(match[j] - 64 - 42, offset, head, part);
+					for(int j=0;j<i;j++) {
+						handleByte(match[j] - 64 - 42, offset, head, part);
+					}
+				}
+			} break;
+			default:
+				handleByte(oc.value() - 42, offset, head, part);
+				break;
 		}
-
-		/*if (line.length() != yencHead.line) { // Incorrect line-size.
-			DIE();
-		}*/
-		int i = 0;
-		if (line[0] == '.' && line[1] == '.') {
-			i = 2;
-		}
-		for(;i<line.length();i++){
-			char c = line[i];
-			if (c == '\0') { DIE(); }
-			if (c == '=') {
-				i++;
-				c = line[i] - 64;
-			}
-			c -= 42;
-
-			putc(c, stdout);
-
-			checksum = crc32_add(checksum, c);
-		}
+		oc = readchar(s, socketbuffer);
 	}
 	checksum = crc32_finish(checksum);
 
 	// TODO: Fix crc32
-	/*if (yencEnd.crc32 != checksum) {
+	if (yencEnd.crc32 != checksum) {
 		DIE();
-	}*/
+	}
 }
 
-struct Segment {
-	size_t bytes;
-	string article;
-};
-
-struct File {
-	string group;
-	list<Segment> segments;
-};
-
-struct Nzb {
-	vector<File> files;
-};
-
 int main(int argc, const char **args) {
+	Nzb *nzb = ParseNZB();
+
 	socketbuffer = Buffer();
 	int s = socket(AF_INET, SOCK_STREAM, 0);
 	if (s < 0) { DIE(); }
@@ -392,28 +407,44 @@ int main(int argc, const char **args) {
 	if (readstatus(s) != 281) {
 		DIE();
 	}
-	writeline(s,"GROUP alt.binaries.hdtv");
-	if (readstatus(s) != 211) {
-		DIE();
+
+{ // Download file-segments
+	vector<File*> &files = nzb->files;
+	for(int i=0;i<files.size();i++) {
+		File &file = *files[i];
+		string group = file.groups[0];
+		writeline(s,"GROUP "+group);
+		if (readstatus(s) != 211) {
+			DIE();
+		}
+
+		vector<Segment*> & segments = file.segments;
+		for(int j=0;j<segments.size();j++) {
+			Segment &segment = *segments[j];
+
+			writeline(s,"ARTICLE <"+segment.article+">");
+			if (readstatus(s) != 220) {
+				DIE();
+			}
+
+			readHeaders(s);
+
+			YEncHead yencHead;
+			readYBegin(s,yencHead);
+
+			YEncPart yencPart;
+			readYPart(s,yencPart);
+
+			readYEnc(s,yencHead,yencPart);
+
+			string dot = readline(s);
+			if (dot != ".") {
+				//printf("%s\n",dot.c_str());
+				DIE();
+			}
+		}
 	}
-
-	Nzb nzb;
-
-	writeline(s,"ARTICLE <1335547219.62896.1@eu.news.astraweb.com>");
-	if (readstatus(s) != 220) {
-		DIE();
-	}
-
-	readHeaders(s);
-
-	YEncHead yencHead;
-	readYBegin(s,yencHead);
-
-	YEncPart yencPart;
-	readYPart(s,yencPart);
-
-	readYEnc(s,yencPart);
-	
+}
 	close(s);
 	return 0;
 }

@@ -17,7 +17,7 @@
  *  implementation, that means shifting towards the right.  Why do we
  *  do it this way?  Because the calculated CRC must be transmitted in
  *  order from highest-order term to lowest-order term.  UARTs transmit
- *  characters in order from LSB to MSB.  By storing the CRC this way
+*  characters in order from LSB to MSB.  By storing the CRC this way
  *  we hand it to the UART in the order low-byte to high-byte; the UART
  *  sends each low-bit to hight-bit; and the result is transmission bit
  *  by bit from highest- to lowest-order term without requiring any bit
