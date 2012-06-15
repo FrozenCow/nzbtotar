@@ -125,6 +125,9 @@ typedef int (PASCAL *PROCESSDATAPROC)(unsigned char *Addr,int Size);
 extern "C" {
 #endif
 
+typedef FILE *(*FOPEN_CALLBACK)(const char *filename, const char *mode);
+typedef __off_t (*FTELLO_CALLBACK)(FILE*);
+void   PASCAL RARSetFopenCallback(FOPEN_CALLBACK fopencb, FTELLO_CALLBACK ftellcb);
 HANDLE PASCAL RAROpenArchive(struct RAROpenArchiveData *ArchiveData);
 HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *ArchiveData);
 int    PASCAL RARCloseArchive(HANDLE hArcData);

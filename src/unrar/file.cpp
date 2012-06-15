@@ -69,32 +69,7 @@ bool File::Open(const char *Name,const wchar *NameW,uint Mode)
   if (hNewFile==BAD_HANDLE && GetLastError()==ERROR_FILE_NOT_FOUND)
     ErrorType=FILE_NOTFOUND;
 #else
-  int flags=UpdateMode ? O_RDWR:(WriteMode ? O_WRONLY:O_RDONLY);
-#ifdef O_BINARY
-  flags|=O_BINARY;
-#if defined(_AIX) && defined(_LARGE_FILE_API)
-  flags|=O_LARGEFILE;
-#endif
-#endif
-#if defined(_EMX) && !defined(_DJGPP)
-  int sflags=OpenShared ? SH_DENYNO:SH_DENYWR;
-  int handle=sopen(Name,flags,sflags);
-#else
-  int handle=open(Name,flags);
-#ifdef LOCK_EX
-
-#ifdef _OSF_SOURCE
-  extern "C" int flock(int, int);
-#endif
-
-  if (!OpenShared && UpdateMode && handle>=0 && flock(handle,LOCK_EX|LOCK_NB)==-1)
-  {
-    close(handle);
-    return(false);
-  }
-#endif
-#endif
-  hNewFile=handle==-1 ? BAD_HANDLE:fdopen(handle,UpdateMode ? UPDATEBINARY:READBINARY);
+  hNewFile=fopen(Name, UpdateMode ? "w+" : (WriteMode ? "w" : "r"));
   if (hNewFile==BAD_HANDLE && errno==ENOENT)
     ErrorType=FILE_NOTFOUND;
 #endif

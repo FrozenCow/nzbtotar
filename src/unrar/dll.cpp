@@ -1,5 +1,6 @@
 #include "rar.hpp"
 #include "dll.hpp"
+#include "fopen_override.hpp"
 
 static int RarErrorToDll(RAR_EXIT ErrCode);
 
@@ -14,6 +15,12 @@ struct DataSet
   DataSet():Arc(&Cmd) {};
 };
 
+
+void PASCAL RARSetFopenCallback(FOPEN_CALLBACK fopencb, FTELLO_CALLBACK ftellocb)
+{
+  custom_fopen = (void*)fopencb;
+  custom_ftello = (void*)ftellocb;
+}
 
 HANDLE PASCAL RAROpenArchive(struct RAROpenArchiveData *r)
 {

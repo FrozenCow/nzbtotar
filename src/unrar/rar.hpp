@@ -75,5 +75,6 @@
 
 #include "global.hpp"
 
+#include "fopen_override.hpp"
 
 #endif
