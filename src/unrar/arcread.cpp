@@ -2,16 +2,24 @@
 
 size_t Archive::SearchBlock(int BlockType)
 {
+  printf("SearchBlockA\n");
   size_t Size,Count=0;
   while ((Size=ReadHeader())!=0 &&
          (BlockType==ENDARC_HEAD || GetHeaderType()!=ENDARC_HEAD))
   {
-    if ((++Count & 127)==0)
+    printf("SearchBlockB\n");
+    if ((++Count & 127)==0) {
+      printf("SearchBlockC\n");
       Wait();
-    if (GetHeaderType()==BlockType)
+    }
+    if (GetHeaderType()==BlockType) {
+      printf("SearchBlockD\n");
       return(Size);
+    }
+    printf("SearchBlockE\n");
     SeekToNext();
   }
+  printf("SearchBlockF\n");
   return(0);
 }
 
@@ -44,6 +52,7 @@ void Archive::UnexpEndArcMsg()
 
 size_t Archive::ReadHeader()
 {
+  printf("ReadHeaderA\n");
   // Once we failed to decrypt an encrypted block, there is no reason to
   // attempt to do it further. We'll never be successful and only generate
   // endless errors.
@@ -63,6 +72,7 @@ size_t Archive::ReadHeader()
 
   if (Decrypt)
   {
+    printf("ReadHeaderB\n");
 #if defined(SHELL_EXT) || defined(RAR_NOCRYPT)
     return(0);
 #else
@@ -111,21 +121,26 @@ size_t Archive::ReadHeader()
 #endif
   }
 
+  printf("ReadHeaderC\n");
   Raw.Read(SIZEOF_SHORTBLOCKHEAD);
   if (Raw.Size()==0)
   {
+    printf("ReadHeaderD\n");
     UnexpEndArcMsg();
     return(0);
   }
 
+  printf("ReadHeaderE\n");
   Raw.Get(ShortBlock.HeadCRC);
   byte HeadType;
   Raw.Get(HeadType);
   ShortBlock.HeadType=(HEADER_TYPE)HeadType;
   Raw.Get(ShortBlock.Flags);
   Raw.Get(ShortBlock.HeadSize);
+  printf("ShortBlock.HeadSize=%d\n",ShortBlock.HeadSize);
   if (ShortBlock.HeadSize<SIZEOF_SHORTBLOCKHEAD)
   {
+    printf("ReadHeaderF\n");
 #ifndef SHELL_EXT
     Log(FileName,St(MLogFileHead),"???");
 #endif
@@ -136,6 +151,7 @@ size_t Archive::ReadHeader()
 
   if (ShortBlock.HeadType==COMM_HEAD)
   {
+    printf("ReadHeaderG\n");
     // Old style (up to RAR 2.9) comment header embedded into main
     // or file header. We must not read the entire ShortBlock.HeadSize here
     // to not break the comment processing logic later.
@@ -144,6 +160,7 @@ size_t Archive::ReadHeader()
   else
     if (ShortBlock.HeadType==MAIN_HEAD && (ShortBlock.Flags & MHD_COMMENT)!=0)
     {
+      printf("ReadHeaderH\n");
       // Old style (up to RAR 2.9) main archive comment embedded into
       // the main archive header found. While we can read the entire 
       // ShortBlock.HeadSize here and remove this part of "if", it would be
@@ -151,14 +168,17 @@ size_t Archive::ReadHeader()
       // in other function anyway and we do not need them here now.
       Raw.Read(SIZEOF_NEWMHD-SIZEOF_SHORTBLOCKHEAD);
     }
-    else
+    else {
+      printf("ReadHeaderI\n");
       Raw.Read(ShortBlock.HeadSize-SIZEOF_SHORTBLOCKHEAD);
+    }
 
   NextBlockPos=CurBlockPos+ShortBlock.HeadSize;
 
   switch(ShortBlock.HeadType)
   {
     case MAIN_HEAD:
+      printf("ReadHeader_MAIN_HEAD\n");
       *(BaseBlock *)&NewMhd=ShortBlock;
       Raw.Get(NewMhd.HighPosAV);
       Raw.Get(NewMhd.PosAV);
@@ -166,6 +186,7 @@ size_t Archive::ReadHeader()
         Raw.Get(NewMhd.EncryptVer);
       break;
     case ENDARC_HEAD:
+      printf("ReadHeader_ENDARC_HEAD\n");
       *(BaseBlock *)&EndArcHead=ShortBlock;
       if (EndArcHead.Flags & EARC_DATACRC)
         Raw.Get(EndArcHead.ArcDataCRC);
@@ -173,8 +194,10 @@ size_t Archive::ReadHeader()
         Raw.Get(EndArcHead.VolNumber);
       break;
     case FILE_HEAD:
+      printf("ReadHeader_FILE_HEAD\n");
     case NEWSUB_HEAD:
       {
+        printf("ReadHeader_NEWSUB_HEAD\n");
         FileHeader *hd=ShortBlock.HeadType==FILE_HEAD ? &NewLhd:&SubHead;
         *(BaseBlock *)hd=ShortBlock;
         Raw.Get(hd->PackSize);
@@ -414,6 +437,7 @@ size_t Archive::ReadHeader()
       break;
 #endif
     default:
+      printf("ReadHeader_DEFAULT\n");
       if (ShortBlock.Flags & LONG_BLOCK)
       {
         uint DataSize;
@@ -422,6 +446,7 @@ size_t Archive::ReadHeader()
       }
       break;
   }
+  printf("ReadHeaderJ\n");
   HeaderCRC=~Raw.GetCRC(false)&0xffff;
   CurHeaderType=ShortBlock.HeadType;
   if (Decrypt)
@@ -457,9 +482,10 @@ size_t Archive::ReadHeader()
       }
     }
   }
-
+  printf("ReadHeaderK\n");
   if (NextBlockPos<=CurBlockPos)
   {
+    printf("ReadHeaderL\n");
 #ifndef SHELL_EXT
     Log(FileName,St(MLogFileHead),"???");
 #endif
@@ -467,6 +493,7 @@ size_t Archive::ReadHeader()
     ErrHandler.SetErrorCode(RARX_CRC);
     return(0);
   }
+  printf("ReadHeaderM\n");
   return(Raw.Size());
 }
 

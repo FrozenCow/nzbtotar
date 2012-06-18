@@ -1,7 +1,14 @@
 CC=clang++
-CFLAGS=-g -I/usr/include/libxml2 -Wl,-t -v
-LDFLAGS=-g -fPIC -lpthread -lexpat -lxml2 -lvrb -Wl,-t -Wl,-v -v
-OBJ=main.o crc32.o 
+
+CFLAGS+=-g
+CFLAGS+=`pkg-config --cflags libxml-2.0`
+CFLAGS+=-Wl,-t -v
+
+LDFLAGS+=-g -fPIC
+LDFLAGS+=`pkg-config --libs libxml-2.0`
+LDFLAGS+=-lpthread -lexpat -lvrb -Lunrar -lunrar -Wl,-t -Wl,-v -v
+
+OBJ=main.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o
 
 all: main
 

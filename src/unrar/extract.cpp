@@ -76,7 +76,8 @@ void CmdExtract::DoExtract(CommandData *Cmd)
 
 void CmdExtract::ExtractArchiveInit(CommandData *Cmd,Archive &Arc)
 {
-  DataIO.UnpArcSize=Arc.FileLength();
+  printf("ExtractArchiveInit\n");
+  // DataIO.UnpArcSize=Arc.FileLength();
 
   FileCount=0;
   MatchedArgs=0;
