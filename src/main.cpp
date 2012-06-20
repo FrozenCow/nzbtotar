@@ -122,6 +122,7 @@ struct DownloadRarState {
 	bool downloaddone;
 	char tmp[1024];
 	pthread_mutex_t mutex;
+	pthread_cond_t cond;
 	DownloadRarState(RarVolumeFile *f) :
 		f(f),
 		vrb(vrb_new(4096, NULL)),
@@ -129,12 +130,16 @@ struct DownloadRarState {
 		offset(0),
 		downloaddone(false)
 	{
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutex_init(&mutex, &attr);
+		pthread_mutexattr_t mutexattr;
+		pthread_mutexattr_init(&mutexattr);
+		pthread_mutex_init(&mutex, &mutexattr);
+		pthread_condattr_t condattr;
+		pthread_condattr_init(&condattr);
+		pthread_cond_init(&cond, &condattr);
 	}
 	~DownloadRarState() {
 		pthread_mutex_destroy(&mutex);
+		pthread_cond_destroy(&cond);
 		vrb_destroy(vrb);
 	}
 };
@@ -162,7 +167,7 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 		if (st->offset <= headerbuflen) {
 			size_t len = min(nbytes,headerbuflen-st->offset);
 			memcpy(buf, headerbuf+st->offset, len);
-			printf("READ %ld @ %ld\n",len,st->offset);
+			//printf("READ %ld @ %ld\n",len,st->offset);
 			st->offset += len;
 			return len;
 		}
@@ -185,13 +190,14 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 			}
 		}
 		while (vrb_data_len(st->vrb) == 0 && !st->downloaddone) {
-			pthread_mutex_unlock(&st->mutex);
-			pthread_mutex_lock(&st->mutex);
+			pthread_cond_wait(&st->cond, &st->mutex);
 		}
 		size_t len = min(max((size_t)0,nbytes-bo), (size_t)vrb_data_len(st->vrb));
 		memcpy(buf+bo,vrb_data_ptr(st->vrb),len);
 		vrb_take(st->vrb, len);
 		bo += len;
+
+		pthread_cond_signal(&st->cond);
 	}
 	pthread_mutex_unlock(&st->mutex);
 
@@ -201,7 +207,7 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 		headerbuflen = bo;
 	}
 
-	printf("READ %ld/%ld @ %ld\n",bo,nbytes,st->offset);
+	//printf("READ %ld/%ld @ %ld\n",bo,nbytes,st->offset);
 
 	st->readpos += bo;
 	st->offset += bo;
@@ -333,20 +339,24 @@ string guessFilename(string subject) {
 
 void file_download(void *cookie, char *buf, size_t len) {
 	DownloadRarState *s = (DownloadRarState*)cookie;
-
+	pthread_mutex_lock(&s->mutex);
 	if (len == 0) {
 		printf("Downloading complete!\n");
 		// End of stream
 		s->downloaddone = true;
+		pthread_cond_signal(&s->cond);
+		pthread_mutex_unlock(&s->mutex);
 		return;
 	}
-	pthread_mutex_lock(&s->mutex);
 	int written;
-	while ((written = vrb_put(s->vrb, buf, len)) != len) {
+	while(len > 0) {
+		while (vrb_space_len(s->vrb) == 0) {
+			pthread_cond_wait(&s->cond, &s->mutex);
+		}
+		int written = vrb_put(s->vrb, buf, len);
 		buf += written;
 		len -= written;
-		pthread_mutex_unlock(&s->mutex);
-		pthread_mutex_lock(&s->mutex);
+		pthread_cond_signal(&s->cond);
 	}
 	pthread_mutex_unlock(&s->mutex);
 }

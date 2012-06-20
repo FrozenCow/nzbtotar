@@ -320,6 +320,9 @@ bool endOfArticle(bufferedstream &s) {
 }
 
 
+char buffer[8192];
+int bufferi = 0;
+
 void readYEnc(bufferedstream &s, YEncHead &head, YEncPart &part, DownloadCallback callback) { // Parsing yEnc lines
 	int partSize = part.end - (part.begin - 1);
 int offset = part.begin;
@@ -351,12 +354,21 @@ newline:
 		s[0] -= 42;
 		checksum = crc32_add(checksum, s[0]);
 
-		callback.f(callback.cookie, s.ptr(), 1);
+		buffer[bufferi++] = s[0];
+
+		if (bufferi == 8192) {
+			callback.f(callback.cookie, buffer, 8192);
+			bufferi = 0;
+		}
 
 		s.take(1);
 	}
 
 endofenc:
+	if (bufferi > 0) {
+		callback.f(callback.cookie, buffer, bufferi);
+		bufferi = 0;
+	}
 	checksum = crc32_finish(checksum);
 
 	if (yencEnd.crc32 != 0 && yencEnd.crc32 != checksum) {
