@@ -124,6 +124,7 @@ bool FindFile::Next(struct FindData *fd,bool GetSymLink)
 
 bool FindFile::FastFind(const char *FindMask,const wchar *FindMaskW,FindData *fd,bool GetSymLink)
 {
+  printf("FastFind %s %s\n",FindMask,FindMaskW);
   fd->Error=false;
 #ifndef _UNIX
   if (IsWildcard(FindMask,FindMaskW))

@@ -24,6 +24,7 @@
 #include <list>
 #include <vector>
 #include <map>
+#include <algorithm>
 
 #include "common.h"
 #include "crc32.h"
@@ -118,13 +119,15 @@ struct DownloadRarState {
 	vrb_p vrb;
 	_IO_off64_t readpos;
 	_IO_off64_t offset;
+	bool downloaddone;
 	char tmp[1024];
 	pthread_mutex_t mutex;
 	DownloadRarState(RarVolumeFile *f) :
 		f(f),
 		vrb(vrb_new(4096, NULL)),
 		readpos(0),
-		offset(0)
+		offset(0),
+		downloaddone(false)
 	{
 		pthread_mutexattr_t attr;
 		pthread_mutexattr_init(&attr);
@@ -139,98 +142,65 @@ struct DownloadRarState {
 map<string,DownloadRarState*> rarfiles;
 
 
+char file_content[50*1024*1024];
 FILE*testfile=NULL;
 
 FILE*rarfile = NULL;
 DownloadRarState*rarstate = NULL;
 
-char *headerbuf;
+char headerbuf[8192*2];
+size_t headerbufcap = 8192*2;
 size_t headerbuflen;
 
 __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	DownloadRarState *st = (DownloadRarState*)cookie;
-
-	if (testfile == NULL) {
-		testfile = fopen("/home/bob/projects/nzbgetweb/files/South.Park.S16E07.720p.WEB-DL.AAC2.0.H.264-CtrlHD/South.Park.S16E07.720p.WEB-DL.AAC2.0.H.264-CtrlHD.part01.rar","r");
-	}
-
 	if (st->readpos != st->offset) {
-		if (st->offset == 0) {
-			memcpy(buf, headerbuf, nbytes);
-			int result = nbytes;
-			fseek(testfile,st->offset,SEEK_SET);
-			for(int i=0;i<result;i++) {
-				char testc;
-				if (fread(&testc, sizeof(char), 1, testfile) == 0){
-					DIE();
-				}
-				if (testc != buf[i]) {
-					printf("differ %x != %x @ %d", testc & 0xff,buf[i] & 0xff,st->offset);
-					DIE();
-				}
-			}
-
-
-			printrarread(buf,result,st->offset);
-
-			st->offset += result;
-			return nbytes;
+		// Uhoh, our vrb isn't at the same location as unrar wants to read...
+		// This should only happen for the header (which is read twice), so
+		// we should have cached the header.
+		if (st->offset <= headerbuflen) {
+			size_t len = min(nbytes,headerbuflen-st->offset);
+			memcpy(buf, headerbuf+st->offset, len);
+			printf("READ %ld @ %ld\n",len,st->offset);
+			st->offset += len;
+			return len;
 		}
+		// If unrar wants to read something else, we have a problem since we have not cached that.
+		// This should never happen.
+		printf("read %lld %lld %d",st->readpos, st->offset, nbytes);
 		DIE();
 	}
 
-	/*pthread_mutex_lock(&st->mutex);
-	while (st->readpos < st->filepos) {
-		printf("RAR: Read catchup %d < %d\n",st->readpos,st->filepos);
-		st->filepos += vrb_take(st->vrb, st->filepos - st->readpos);
-		pthread_mutex_unlock(&st->mutex);
-		pthread_mutex_lock(&st->mutex);
-	}
-	pthread_mutex_unlock(&st->mutex);*/
-
-	//printf("RAR: Waiting for data...\n");
-	int result = 0;
+	// Gradually read from the vrb to buf.
+	size_t bo = 0;
 	pthread_mutex_lock(&st->mutex);
-	for(int i=0;i<nbytes;i++) {
+	while(bo<nbytes) {
+		if (st->downloaddone && vrb_data_len(st->vrb) == 0) {
+			printf("End of Stream found!\n");
+			break;
+		}
 		while (vrb_data_len(st->vrb) == 0) {
 			pthread_mutex_unlock(&st->mutex);
 			pthread_mutex_lock(&st->mutex);
 		}
-		buf[i] = vrb_data_ptr(st->vrb)[0];
-		vrb_take(st->vrb, 1);
-		result++;
+		size_t len = min(max((size_t)0,nbytes-bo), (size_t)vrb_data_len(st->vrb));
+		memcpy(buf+bo,vrb_data_ptr(st->vrb),len);
+		vrb_take(st->vrb, len);
+		bo += len;
 	}
 	pthread_mutex_unlock(&st->mutex);
 
-	if (st->offset == 0) {
-		headerbuf = (char*)malloc(nbytes);
-		memcpy(headerbuf, buf, nbytes);
-		headerbuflen = nbytes;
+	// If we are at the header, cache it for later use.
+	if (st->offset < headerbufcap) {
+		memcpy(headerbuf+st->offset, buf, min(headerbufcap-st->offset,bo));
+		headerbuflen = bo;
 	}
 
-	fseek(testfile,st->offset,SEEK_SET);
-	for(int i=0;i<result;i++) {
-		char testc;
-		if (fread(&testc, sizeof(char), 1, testfile) == 0){
-			DIE();
-		}
-		if (testc != buf[i]) {
-			printf("differ %x != %x @ %d", testc & 0xff,buf[i] & 0xff,st->offset);
-			DIE();
-		}
-		//printf("%x ",buf[i] & 0xff);
-	}
+	printf("READ %ld/%ld @ %ld\n",bo,nbytes,st->offset);
 
-	printrarread(buf,result,st->offset);
-
-	st->readpos += result;
-	st->offset += result;
-	//printf("RAR: Got data %d.\n", result);
-
-	sleep(1);
-	//printf("\n");
-
-	return result;
+	st->readpos += bo;
+	st->offset += bo;
+	return bo;
 }
 
 ssize_t rar_write(void *cookie, const char *buf, size_t n) {
@@ -244,11 +214,15 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 	switch(__w) {
 		case SEEK_SET: newpos = *__pos; break;
 		case SEEK_CUR: newpos = st->offset + *__pos; break;
-		case SEEK_END: DIE(); break;
+		case SEEK_END: newpos = 999999; break;
 		default: DIE(); break;
 	}
-	printrarseek(*__pos,__w,st->offset);
+	printf("SEEK %lld > %lld (%d)\n",st->offset,newpos,__w);
+	/*if (__w != SEEK_END && abs(newpos - st->offset) > 8192*2 && newpos > 8192) {
+		DIE();
+	}*/
 	st->offset = newpos;
+	*__pos = newpos;
 	return 0;
 }
 int rar_close(void *cookie) {
@@ -352,10 +326,20 @@ string guessFilename(string subject) {
 	return subject;
 }
 
-void file_download(void *cookie, char c) {
+void file_download(void *cookie, char *buf, size_t len) {
 	DownloadRarState *s = (DownloadRarState*)cookie;
+
+	if (len == 0) {
+		printf("Downloading complete!\n");
+		// End of stream
+		s->downloaddone = true;
+		return;
+	}
 	pthread_mutex_lock(&s->mutex);
-	while (vrb_put(s->vrb, &c, 1) != 1) {
+	int written;
+	while ((written = vrb_put(s->vrb, buf, len)) != len) {
+		buf += written;
+		len -= written;
 		pthread_mutex_unlock(&s->mutex);
 		pthread_mutex_lock(&s->mutex);
 	}
