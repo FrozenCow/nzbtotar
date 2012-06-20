@@ -1,0 +1,13 @@
+.fuse_*
+**.o
+**.a
+**.so
+*.nzb
+*.bin
+main
+unrar/UnRAR*.vcproj
+unrar/acknow.txt
+unrar/dll.def
+unrar/dll.rc
+unrar/msc.dep
+unrar/makefile.*
