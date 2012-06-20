@@ -283,8 +283,10 @@ bool RecVolumes::Restore(RAROptions *Cmd,const char *Name,
     SrcFile[FileNumber+P[0]-1]=NewFile;
     FoundRecVolumes++;
 #ifndef SILENT
-    if (RecFileSize==0)
+    if (RecFileSize==0) {
+      printf("B\n");
       RecFileSize=NewFile->FileLength();
+    }
 #endif
   }
 #ifndef SILENT

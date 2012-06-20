@@ -466,6 +466,7 @@ uint CalcFileCRC(File *SrcFile,int64 Size,CALCCRC_SHOWMODE ShowMode)
   uint DataCRC=0xffffffff;
 
 #if !defined(SILENT) && !defined(_WIN_CE)
+  printf("A\n");
   int64 FileLength=SrcFile->FileLength();
   if (ShowMode!=CALCCRC_SHOWNONE)
   {

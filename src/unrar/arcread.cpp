@@ -42,6 +42,7 @@ void Archive::UnexpEndArcMsg()
   int64 ArcSize=FileLength();
   if (CurBlockPos>ArcSize || NextBlockPos>ArcSize)
   {
+    printf("D\n");
 #ifndef SHELL_EXT
     Log(FileName,St(MLogUnexpEOF));
 #endif

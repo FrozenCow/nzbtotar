@@ -154,6 +154,7 @@ size_t headerbuflen;
 
 __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	DownloadRarState *st = (DownloadRarState*)cookie;
+
 	if (st->readpos != st->offset) {
 		// Uhoh, our vrb isn't at the same location as unrar wants to read...
 		// This should only happen for the header (which is read twice), so
@@ -175,11 +176,15 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	size_t bo = 0;
 	pthread_mutex_lock(&st->mutex);
 	while(bo<nbytes) {
-		if (st->downloaddone && vrb_data_len(st->vrb) == 0) {
-			printf("End of Stream found!\n");
-			break;
+		if (st->downloaddone) {
+			int len = vrb_data_len(st->vrb);
+			printf("Download done, but %d left\n",len);
+			if (len == 0) {
+				printf("End of Stream found!\n");
+				break;
+			}
 		}
-		while (vrb_data_len(st->vrb) == 0) {
+		while (vrb_data_len(st->vrb) == 0 && !st->downloaddone) {
 			pthread_mutex_unlock(&st->mutex);
 			pthread_mutex_lock(&st->mutex);
 		}
@@ -218,9 +223,9 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 		default: DIE(); break;
 	}
 	printf("SEEK %lld > %lld (%d)\n",st->offset,newpos,__w);
-	/*if (__w != SEEK_END && abs(newpos - st->offset) > 8192*2 && newpos > 8192) {
+	if (__w != SEEK_END && abs(newpos - st->offset) > 8192*2 && newpos > 8192) {
 		DIE();
-	}*/
+	}
 	st->offset = newpos;
 	*__pos = newpos;
 	return 0;
