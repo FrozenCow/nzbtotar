@@ -125,7 +125,7 @@ struct DownloadRarState {
 	pthread_cond_t cond;
 	DownloadRarState(RarVolumeFile *f) :
 		f(f),
-		vrb(vrb_new(4096, NULL)),
+		vrb(vrb_new(4096, "/tmp/bufferXXXXXX")),
 		readpos(0),
 		offset(0),
 		downloaddone(false)

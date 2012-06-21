@@ -28,8 +28,10 @@ class bufferedstream {
 	vrb_p b;
 public:
 	inline bufferedstream(int fd, size_t size) :
-		fd(fd),
-		b(vrb_new(size,NULL)) { }
+		fd(fd) {
+			b = vrb_new(size, "/tmp/bufferXXXXXX");
+			if (b == NULL) { DIE(); }
+		}
 	inline ~bufferedstream() {
 		vrb_destroy(b);
 	}
