@@ -117,8 +117,8 @@ struct RarVolumeFile {
 struct DownloadRarState {
 	RarVolumeFile *f;
 	vrb_p vrb;
-	_IO_off64_t readpos;
-	_IO_off64_t offset;
+	size_t readpos;
+	size_t offset;
 	bool downloaddone;
 	char tmp[1024];
 	pthread_mutex_t mutex;
@@ -229,7 +229,7 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 		default: DIE(); break;
 	}
 	printf("SEEK %lld > %lld (%d)\n",st->offset,newpos,__w);
-	if (__w != SEEK_END && abs(newpos - st->offset) > 8192*2 && newpos > 8192) {
+	if (__w != SEEK_END && abs((long long)(newpos - st->offset)) > 8192*2 && newpos > 8192) {
 		DIE();
 	}
 	st->offset = newpos;
