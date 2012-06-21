@@ -266,17 +266,17 @@ bool readYEnd(bufferedstream &s,YEncEnd &yencEnd) { // Parsing ypart
 	}
 }
 
-bool endOfArticle(bufferedstream &s) {
-	s.ensure(1);
-	if (s[0] == '.') {
-		s.ensure(2);
-		if (s[1] == '\n') {
-			s.take(2);
+bool endOfArticle(bufferedstream &s, int &readi) {
+	s.ensure(readi+1);
+	if (s[readi+0] == '.') {
+		s.ensure(readi+2);
+		if (s[readi+1] == '\n') {
+			readi += 2;
 			return true;
-		} else if (s[1] == '\r') {
-			s.ensure(3);
-			if (s[2] == '\n') {
-				s.take(3);
+		} else if (s[readi+1] == '\r') {
+			s.ensure(readi+3);
+			if (s[readi+2] == '\n') {
+				readi+=3;
 				return true;
 			}
 		}
@@ -299,18 +299,16 @@ newline:
 	if (s[readi] == '.' && s[readi+1] == '.') {
 		readi++;
 	} else {
-		if (s[readi] == '.' || s[readi] == '=') {
+		if (endOfArticle(s, readi)) {
+			goto endofenc;
+		}
+		if (s[readi] == '=') {
 			if (writei > 0) {
 				callback.f(callback.cookie, s.ptr(), writei);
 			}
 			s.take(readi);
 			writei=readi=0;
 		}
-
-		if (endOfArticle(s)) {
-			goto endofenc;
-		}
-
 		if (readYEnd(s, yencEnd)) {
 			goto newline;
 		}
@@ -321,12 +319,11 @@ newline:
 		if (s[readi] == '\0') { DIE(); } // Incorrect character
 		if (s[readi] == '\r') { readi++; continue; } // Ignore return-character
 		if (s[readi] == '\n') { readi++; goto newline; } // Handle new lines
-		if (s[readi] == '=') { readi++; s.ensure(readi+1); s[readi] -= 64; }
-		s[readi] -= 42;
-		checksum = crc32_add(checksum, s[readi]);
-
-		s[writei++] = s[readi];
-		readi++;
+		if (s[readi] == '=') { readi++; s.ensure(readi+1); s[writei] = s[readi] - 64; }
+		else { s[writei] = s[readi]; }
+		s[writei] -= 42;
+		checksum = crc32_add(checksum, s[writei]);
+		readi++; writei++;
 
 		if (writei >= 8192) {
 			callback.f(callback.cookie, s.ptr(), writei);

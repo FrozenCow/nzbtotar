@@ -173,7 +173,7 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 		}
 		// If unrar wants to read something else, we have a problem since we have not cached that.
 		// This should never happen.
-		printf("read %lld %lld %d",st->readpos, st->offset, nbytes);
+		printf("read %lld %lld %d\n",st->readpos, st->offset, nbytes);
 		DIE();
 	}
 
@@ -229,9 +229,9 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 		default: DIE(); break;
 	}
 	printf("SEEK %lld > %lld (%d)\n",st->offset,newpos,__w);
-	if (__w != SEEK_END && abs((long long)(newpos - st->offset)) > 8192*2 && newpos > 8192) {
-		DIE();
-	}
+	// if (__w == SEEK_SET && newpos < st->offset && st->offset > 20000000) {
+	// 	DIE();
+	// }
 	st->offset = newpos;
 	*__pos = newpos;
 	return 0;
