@@ -125,6 +125,7 @@ struct YEncPart {
 
 struct YEncEnd {
 	unsigned long crc32;
+	YEncEnd() : crc32(0) { }
 };
 
 struct KeyValue {
