@@ -1,10 +1,12 @@
-CC=clang++
+#CC=clang++
+CC=g++
 
 CFLAGS+=-g
 CFLAGS+=`pkg-config --cflags libxml-2.0`
 CFLAGS+=-Wl,-t -v
 
-LDFLAGS+=-g -fPIC
+LDFLAGS+=-g
+LDFLAGS+=-fPIC
 LDFLAGS+=`pkg-config --libs libxml-2.0`
 LDFLAGS+=-lpthread -lexpat -lvrb -Lunrar -lunrar -Wl,-t -Wl,-v -v
 
