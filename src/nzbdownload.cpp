@@ -137,45 +137,6 @@ void breakpoint() {
 	printf("BREAK\n");
 }
 
-string filename = "";
-FILE * filehandle;
-int lastoffset;
-
-char changedbytes[10];
-int changedbytesi = 0;
-void handleByte(char c,int offset,YEncHead &head,YEncPart &part) {
-	/*if (head.name.compare(filename) != 0) {
-		printf("file: %s\n",head.name.c_str());
-		if (!filename.empty()) {
-			fclose(filehandle);
-		}
-		filename = head.name;
-		filehandle = fopen(filename.c_str(), "w");
-		lastoffset = 0;
-	}
-	fwrite(&c, sizeof(char), 1, filehandle);*/
-	if (head.name.compare(filename) != 0) {
-		printf("file: %s\n",head.name.c_str());
-		if (!filename.empty()) {
-			fclose(filehandle);
-		}
-		filename = head.name;
-		filehandle = fopen(("/media/data/projects/nzbgetweb/files/test/"+filename).c_str(), "r");
-		lastoffset = 0;
-	}
-	//fwrite(&c, sizeof(char), 1, filehandle);
-	char compare;
-	fread(&compare, sizeof(char), 1, filehandle);
-	lastoffset++;
-	if (compare != c || changedbytesi > 0) {
-		changedbytes[changedbytesi] = c;
-		changedbytesi++;
-		if (changedbytesi == 1) {
-			breakpoint();
-		}
-	}
-}
-
 char *strnchr(char *str, size_t len, char c) {
 	for(int i=0;i<len;i++)
 		if (str[i] == c)
@@ -306,23 +267,23 @@ bool readYEnd(bufferedstream &s,YEncEnd &yencEnd) { // Parsing ypart
 }
 
 bool endOfArticle(bufferedstream &s) {
-	s.ensure(3);
+	s.ensure(1);
 	if (s[0] == '.') {
+		s.ensure(2);
 		if (s[1] == '\n') {
 			s.take(2);
 			return true;
-		}
-		if (s[1] == '\r' && s[2] == '\n') {
-			s.take(3);
-			return true;
+		} else if (s[1] == '\r') {
+			s.ensure(3);
+			if (s[2] == '\n') {
+				s.take(3);
+				return true;
+			}
 		}
 	}
 	return false;
 }
 
-
-char buffer[8192];
-int bufferi = 0;
 
 void readYEnc(bufferedstream &s, YEncHead &head, YEncPart &part, DownloadCallback callback) { // Parsing yEnc lines
 	int partSize = part.end - (part.begin - 1);
@@ -330,13 +291,22 @@ int offset = part.begin;
 	YEncEnd yencEnd;
 
 	unsigned long checksum = crc32_init();
-
+	int readi = 0;
+	int writei = 0;
 newline:
 	// Handle escaped dots at beginning of lines.
-	s.ensure(2);
-	if (s[0] == '.' && s[1] == '.') {
-		s.take(1);
+	s.ensure(readi+2);
+	if (s[readi] == '.' && s[readi+1] == '.') {
+		readi++;
 	} else {
+		if (s[readi] == '.' || s[readi] == '=') {
+			if (writei > 0) {
+				callback.f(callback.cookie, s.ptr(), writei);
+			}
+			s.take(readi);
+			writei=readi=0;
+		}
+
 		if (endOfArticle(s)) {
 			goto endofenc;
 		}
@@ -347,29 +317,33 @@ newline:
 	}
 
 	while(true) {
-		s.ensure(1);
-		if (s[0] == '\0') { DIE(); } // Incorrect character
-		if (s[0] == '\r') { s.take(1); continue; } // Ignore return-character
-		if (s[0] == '\n') { s.take(1); goto newline; } // Handle new lines
-		if (s[0] == '=') { s.take(1); s.ensure(1); s[0] -= 64; }
-		s[0] -= 42;
-		checksum = crc32_add(checksum, s[0]);
+		s.ensure(readi+1);
+		if (s[readi] == '\0') { DIE(); } // Incorrect character
+		if (s[readi] == '\r') { readi++; continue; } // Ignore return-character
+		if (s[readi] == '\n') { readi++; goto newline; } // Handle new lines
+		if (s[readi] == '=') { readi++; s.ensure(readi+1); s[readi] -= 64; }
+		s[readi] -= 42;
+		checksum = crc32_add(checksum, s[readi]);
 
-		buffer[bufferi++] = s[0];
+		s[writei++] = s[readi];
+		readi++;
 
-		if (bufferi == 8192) {
-			callback.f(callback.cookie, buffer, 8192);
-			bufferi = 0;
+		if (writei >= 8192) {
+			callback.f(callback.cookie, s.ptr(), writei);
+			s.take(readi);
+			readi=0;
+			writei=0;
 		}
-
-		s.take(1);
 	}
 
 endofenc:
-	if (bufferi > 0) {
-		callback.f(callback.cookie, buffer, bufferi);
-		bufferi = 0;
+	if (writei > 0) {
+		callback.f(callback.cookie, s.ptr(), writei);
 	}
+	s.take(readi);
+	writei=0;
+	readi=0;
+
 	checksum = crc32_finish(checksum);
 
 	if (yencEnd.crc32 != 0 && yencEnd.crc32 != checksum) {
@@ -398,7 +372,7 @@ NntpConnection *nntp_connect(NntpServerSettings &settings) {
 		DIE();
 	}
 
-	bufferedstream &s = *(new bufferedstream(fd,4096));
+	bufferedstream &s = *(new bufferedstream(fd,16384));
 
 
 	if (readstatus(s) != 200) {

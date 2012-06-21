@@ -1,6 +1,7 @@
 #ifndef STREAM_H
 #define STREAM_H
 
+#include <errno.h>
 #include <cstring>
 extern "C" {
 #include <vrb.h>
