@@ -184,8 +184,8 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 }
 
 ssize_t rar_write(void *cookie, const char *buf, size_t n) {
-	DownloadRarState *st = (DownloadRarState*)cookie;
-	printf("RAR_WRITE\n");
+	// Unrar should never write to a downloading RAR-volume.
+	DIE();
 	return 0;
 }
 int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
