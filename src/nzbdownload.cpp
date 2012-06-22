@@ -17,15 +17,13 @@ inline bool iscrorlf(char c) {
 	return c == '\r' || c == '\n';
 }
 
+// Parse a integer from a fixed-size character-array.
 int atoin(char *c,size_t len) {
-	// This is bullshit.
+	// This is not the best.
+	// TODO: Avoid usage of istringstream and string.
 	istringstream ss(string(c,len));
 	int result;
 	ss >> result;
-	// char e = c[len];
-	// c[len] = '\0';
-	// int result = atoi(c);
-	// c[len] = e;
 	return result;
 }
 
@@ -47,6 +45,7 @@ struct Header {
 	Header() : name(), value() { }
 	Header(str name, str value) : name(name), value(value) { }
 };
+
 const section readheader(bufferedstream &s, Header &header) {
 	const section r = s.getline();
 	if (r.len <= 2) {
@@ -132,10 +131,6 @@ struct KeyValue {
 	string key;
 	string value;
 };
-
-void breakpoint() {
-	printf("BREAK\n");
-}
 
 char *strnchr(char *str, size_t len, char c) {
 	for(int i=0;i<len;i++)

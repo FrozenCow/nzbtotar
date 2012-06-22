@@ -89,6 +89,7 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	// Gradually read from the vrb to buf.
 	size_t bo = st->stream.read(buf,nbytes);
 	if (bo == 0) {
+		// End of Stream
 		printf("Unrar End Of Stream\n");
 	}
 
@@ -181,6 +182,7 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 void file_download(void *cookie, char *buf, size_t len) {
 	DownloadRarState *s = (DownloadRarState*)cookie;
 	if (len == 0) {
+		// Download is complete.
 		printf("Downloading complete!\n");
 		s->stream.write_close();
 		return;
