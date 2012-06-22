@@ -14,7 +14,7 @@ LDFLAGS+=-fPIC
 LDFLAGS+=`pkg-config --libs libxml-2.0`
 LDFLAGS+=-lpthread -lexpat -Lunrar -lunrar -lvrb -Wl,-t -Wl,-v -v
 
-OBJ=main.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o proconstream.o
+OBJ=main.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o proconstream.o parserarvolume.o
 
 all: main
 
