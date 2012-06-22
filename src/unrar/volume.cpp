@@ -28,19 +28,14 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,char Comman
   int64 PosBeforeClose=Arc.Tell();
 
   if (DataIO!=NULL) {
-    printf("C\n");
     DataIO->ProcessedArcSize+=PosBeforeClose;
   }
-
-  printf("HAHAHA_A\n");
   Arc.Close();
-  printf("HAHAHA_B\n");
   char NextName[NM];
   wchar NextNameW[NM];
   strcpy(NextName,Arc.FileName);
   wcscpy(NextNameW,Arc.FileNameW);
   NextVolumeName(NextName,NextNameW,ASIZE(NextName),(Arc.NewMhd.Flags & MHD_NEWNUMBERING)==0 || Arc.OldFormat);
-  printf("HAHAHA_C\n");
 #if !defined(SFX_MODULE) && !defined(RARDLL)
   bool RecoveryDone=false;
 #endif
@@ -53,12 +48,9 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,char Comman
   if (Cmd->VolumePause && !AskNextVol(NextName,NextNameW))
     FailedOpen=true;
 #endif
-  printf("HAHAHA_D\n");
-  if (!FailedOpen) { printf("HAHAHA_E\n"); }
   if (!FailedOpen)
     while (!Arc.Open(NextName,NextNameW,0))
     {
-      printf("HAHAHA_F\n");
       // We need to open a new volume which size was not calculated
       // in total size before, so we cannot calculate the total progress
       // anymore. Let's reset the total size to zero and stop 
@@ -178,10 +170,8 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,char Comman
 #if !defined(SILENT) && !defined(_WIN_CE)
       Log(Arc.FileName,St(MAbsNextVol),NextName);
 #endif
-      printf("HAHAHA_F\n");
     Arc.Open(Arc.FileName,Arc.FileNameW,0);
     Arc.Seek(PosBeforeClose,SEEK_SET);
-    printf("HAHAHA_G\n");
     return(false);
   }
   Arc.CheckArc(true);
@@ -210,7 +200,6 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,char Comman
 
   if (Command=='T' || Command=='X' || Command=='E')
     mprintf(St(Command=='T' ? MTestVol:MExtrVol),Arc.FileName);
-  printf("HAHAHA_H\n");
 
   if (SplitHeader)
     Arc.SearchBlock(HeaderType);

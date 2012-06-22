@@ -82,7 +82,6 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 		}
 		// If unrar wants to read something else, we have a problem since we have not cached that.
 		// This should never happen.
-		printf("read %lld %lld %d\n",st->readpos, st->offset, nbytes);
 		DIE();
 	}
 
@@ -90,7 +89,6 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	size_t bo = st->stream.read(buf,nbytes);
 	if (bo == 0) {
 		// End of Stream
-		printf("Unrar End Of Stream\n");
 	}
 
 	// If we are at the header, cache it for later use.
@@ -120,7 +118,6 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 		case SEEK_END: newpos = 999999; break;
 		default: DIE(); break;
 	}
-	printf("SEEK %lld > %lld (%d)\n",st->offset,newpos,__w);
 	// if (__w == SEEK_SET && newpos < st->offset && st->offset > 20000000) {
 	// 	DIE();
 	// }
@@ -152,7 +149,6 @@ void extractrar(char *filename, char *destination) {
 	int status;
 	status = RARReadHeader(h, &header);
 	while (status == 0) {
-		printf("extracting %s\n", header.FileName);
 		status = RARProcessFile(h, RAR_EXTRACT, destination, NULL);
 		if (status != 0) { break; }
 		status = RARReadHeader(h, &header);
@@ -160,7 +156,6 @@ void extractrar(char *filename, char *destination) {
 }
 
 FILE *rar_fopen(const char *filename, const char *mode) {
-	printf("fopen %s %s\n",filename,mode);
 	if (strcmp(mode,"r") != 0) {
 		return fopen(filename,mode);
 	}
@@ -169,12 +164,9 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 	fns.write = rar_write;
 	fns.seek = rar_seek;
 	fns.close = rar_close;
-
-	printf("RAR: Waiting for %s...\n",filename);
 	map<string,DownloadRarState*>::iterator it;
 	while ((it = rarfiles.find(string(filename))) == rarfiles.end()) {
 	}
-	printf("RAR: Got %s.\n",filename);
 	DownloadRarState *state = (*it).second;
 	return fopencookie(state, mode, fns);
 }
@@ -183,7 +175,6 @@ void file_download(void *cookie, char *buf, size_t len) {
 	DownloadRarState *s = (DownloadRarState*)cookie;
 	if (len == 0) {
 		// Download is complete.
-		printf("Downloading complete!\n");
 		s->stream.write_close();
 		return;
 	}
@@ -243,7 +234,6 @@ int main(int argc, const char **args) {
 
 	for(it = rarlist.begin();it != rarlist.end();it++) {
 		RarVolumeFile *rarfile = *it;
-		printf("NZB: Downloading %s...\n",rarfile->volume.toString().c_str());
 
 		cb.cookie = rarfiles[rarfile->volume.toString()] = new DownloadRarState(rarfile);
 		nntp_downloadfile(connection, *rarfile->file, cb);

@@ -599,7 +599,6 @@ wchar* GetVolNumPart(wchar *ArcName)
 
 void NextVolumeName(char *ArcName,wchar *ArcNameW,uint MaxLength,bool OldNumbering)
 {
-  printf("'%s' '%s'\n",ArcName, ArcNameW);
   if (ArcName!=NULL && *ArcName!=0)
   {
     char *ChPtr;
@@ -695,7 +694,6 @@ void NextVolumeName(char *ArcName,wchar *ArcNameW,uint MaxLength,bool OldNumberi
           }
       }
   }
-  printf("'%s' '%s'\n",ArcName, ArcNameW);
 }
 
 

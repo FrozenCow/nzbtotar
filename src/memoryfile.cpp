@@ -89,7 +89,6 @@ memfile_seek(void *c, off64_t *offset, int whence)
 int
 memfile_close(void *c)
 {
-  printf("close\n");
    memfile_cookie *cookie = (memfile_cookie *)c;
 
    free(cookie->buf);
@@ -112,6 +111,5 @@ FILE *fopenmemory() {
    mycookie->allocated = 1024;
    mycookie->endpos = 0;
    mycookie->offset = 0;
-   printf("%d %d %d\n", mycookie->allocated, mycookie->endpos, mycookie->offset);
    return fopencookie(mycookie,"w+", memfile_func);
 }

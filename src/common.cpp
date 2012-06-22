@@ -4,7 +4,6 @@
 void printrarread(const char *buf,size_t size, size_t offset) {
   FILE *f = fopen(PRINTFILE,"a");
   fprintf(f,"RAR_READ %lld @ %lld\n",size,offset);
-  printf("RAR_READ %lld @ %lld\n",size,offset);
   for(int i=0;i<size;i++) {
     fprintf(f,"%02x ", buf[i] & 0xff);
   }
@@ -22,7 +21,6 @@ void printrarseek(size_t nr, int type, size_t offset) {
     case SEEK_END: newoffset = 999999; break;
   }
   fprintf(f,"RAR_SEEK %lld > %lld (%d)\n", offset, newoffset, type);
-  printf("RAR_SEEK %lld > %lld (%d)\n", offset, newoffset, type);
   fclose(f);
   sleep(1);
 }

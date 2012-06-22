@@ -11,10 +11,8 @@ typedef __off_t (*FTELLO_CALLBACK)(FILE*);
 
 FILE *_custom_fopen(const char *filename, const char *mode) {
 	if (custom_fopen) {
-		printf("invoke custom!\n");
 		return ((FOPEN_CALLBACK)custom_fopen)(filename, mode);
 	} else {
-		printf("invoke default!\n");
 		return fopen(filename, mode);
 	}
 }

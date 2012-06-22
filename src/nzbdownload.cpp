@@ -72,7 +72,6 @@ void write(int fd, const char *s,size_t len) {
 }
 
 void writeline(int fd, string s) {
-	fprintf(stderr,"> %s\n",s.c_str());
 	write(fd,s.c_str(),s.length());
 	write(fd,"\r\n",2);
 }
@@ -379,7 +378,6 @@ NntpConnection *nntp_connect(NntpServerSettings &settings) {
 	writeline(fd,"AUTHINFO PASS "+settings.password);
 	int status = readstatus(s);
 	if (status != 281) {
-		printf("%d\n",status);
 		close(fd);
 		DIE();
 	}
@@ -398,7 +396,6 @@ void nntp_downloadfile(NntpConnection *connection, NzbFile &file, DownloadCallba
 	int fd = connection->fd;
 	bufferedstream &s = *(connection->s);
 	string group = file.groups[0];
-	printf("Downloading article...\n");
 	writeline(fd,"GROUP "+group);
 	if (readstatus(s) != 211) {
 		DIE();
