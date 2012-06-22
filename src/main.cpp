@@ -1,39 +1,12 @@
-#define _GNU_SOURCE
-#define __USE_GNU
-#include <sys/types.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-//#include "nzbfetch/nzb_fetch.h"
-
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-
-#include <expat.h>
-
-#include <iostream>
 #include <string>
-#include <sstream>
 #include <list>
-#include <vector>
 #include <map>
 #include <algorithm>
 
 #include "common.h"
-#include "crc32.h"
-#include "bufferedstream.h"
-
 #include "unrar.h"
 #include "nzbparser.h"
 #include "nzbdownload.h"
-#include "memoryfile.h"
 #include "proconstream.h"
 #include "parserarvolume.h"
 
