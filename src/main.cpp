@@ -39,50 +39,13 @@
 
 using namespace std;
 
-void extractrar(char *filename, char *destination) {
-	RAROpenArchiveData oad;
-	memset(&oad, sizeof(RAROpenArchiveData), 1);
-	oad.ArcName = filename;
-	oad.OpenMode = RAR_OM_EXTRACT;
-	printf("OpenArchive\n");
-	HANDLE h = RAROpenArchive(&oad);
-	if (h == NULL) {
-		printf("Error opening.\n");
-		exit(1);
-	}
-	if (oad.OpenResult != 0) {
-		printf("Error opening2.\n");
-		exit(1);
-	}
-	RARHeaderData header;
-	int status;
-	printf("ReadHeader...\n");
-	status = RARReadHeader(h, &header);
-	while (status == 0) {
-		status = RARProcessFile(h, RAR_EXTRACT, destination, NULL);
-		if (status != 0) { break; }
-		printf("ReadHeader...\n");
-		status = RARReadHeader(h, &header);
-	}
-	printf("DONE!\n");
-}
-
-void appendToFile(const char *filename, const char *buf, size_t size) {
-	FILE * f = fopen(filename, "a");
-	for(int i=0;i<size;i++) {
-		fprintf(f, "%02x ", buf[i]);
-	}
-	fprintf(f, "\n");
-	fclose(f);
-}
-
 struct RarVolumeFile {
 	NzbFile *file;
 	RarVolume volume;
 	RarVolumeFile(NzbFile *file,RarVolume volume) : file(file), volume(volume) { }
 };
 
-
+// Combines data needed for downloading as well as extracting for a single rar-volume.
 struct DownloadRarState {
 	RarVolumeFile *f;
 	ProconStream stream;
@@ -98,9 +61,7 @@ struct DownloadRarState {
 
 map<string,DownloadRarState*> rarfiles;
 
-FILE*rarfile = NULL;
-DownloadRarState*rarstate = NULL;
-
+// A cache to place the header of a RAR-volume.
 char headerbuf[8192*2];
 size_t headerbufcap = 8192*2;
 size_t headerbuflen;
@@ -137,20 +98,20 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 		headerbuflen = bo;
 	}
 
-	//printf("READ %ld/%ld @ %ld\n",bo,nbytes,st->offset);
-
 	st->readpos += bo;
 	st->offset += bo;
 	return bo;
 }
 
 ssize_t rar_write(void *cookie, const char *buf, size_t n) {
-	// Unrar should never write to a downloading RAR-volume.
+	// libunrar called fwrite on a RAR-volume.
+	// This should never happen, so just die.
 	DIE();
 	return 0;
 }
 int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 	DownloadRarState *st = (DownloadRarState*)cookie;
+	// libunrar called fseek on a RAR-volume.
 	_IO_off64_t newpos;
 	switch(__w) {
 		case SEEK_SET: newpos = *__pos; break;
@@ -168,8 +129,33 @@ int rar_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 }
 int rar_close(void *cookie) {
 	DownloadRarState *st = (DownloadRarState*)cookie;
-	printf("RAR_CLOSE\n");
+	// libunrar called fclose on a RAR-volume.
 	return 0;
+}
+
+// Extracts a file to a certain destination using libunrar.
+void extractrar(char *filename, char *destination) {
+	RAROpenArchiveData oad;
+	memset(&oad, sizeof(RAROpenArchiveData), 1);
+	oad.ArcName = filename;
+	oad.OpenMode = RAR_OM_EXTRACT;
+
+	HANDLE h = RAROpenArchive(&oad);
+	if (h == NULL) {
+		DIE();
+	}
+	if (oad.OpenResult != 0) {
+		DIE();
+	}
+	RARHeaderData header;
+	int status;
+	status = RARReadHeader(h, &header);
+	while (status == 0) {
+		printf("extracting %s\n", header.FileName);
+		status = RARProcessFile(h, RAR_EXTRACT, destination, NULL);
+		if (status != 0) { break; }
+		status = RARReadHeader(h, &header);
+	}
 }
 
 FILE *rar_fopen(const char *filename, const char *mode) {
@@ -189,9 +175,7 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 	}
 	printf("RAR: Got %s.\n",filename);
 	DownloadRarState *state = (*it).second;
-	rarstate = state;
-	rarfile = fopencookie(state, mode, fns);
-	return rarfile;
+	return fopencookie(state, mode, fns);
 }
 
 void file_download(void *cookie, char *buf, size_t len) {
@@ -204,7 +188,7 @@ void file_download(void *cookie, char *buf, size_t len) {
 	s->stream.write(buf,len);
 }
 
-void *run_rar(void *arg) {
+void *rarthread_run(void *arg) {
 	RarVolumeFile *rarfile = (RarVolumeFile*)arg;
 	string filename = rarfile->volume.toString();
 
@@ -215,7 +199,6 @@ void *run_rar(void *arg) {
 	RARSetFopenCallback(rar_fopen, NULL);
 	extractrar(arcname,"storage");
 	
-
 	return NULL;
 }
 
@@ -242,7 +225,7 @@ int main(int argc, const char **args) {
 	pthread_t rarthread;
 	pthread_attr_t rarattr;
 	pthread_attr_init(&rarattr);
-	pthread_create(&rarthread, &rarattr, run_rar, rarlist.front());
+	pthread_create(&rarthread, &rarattr, rarthread_run, rarlist.front());
 
 
 	NntpServerSettings settings;
