@@ -34,6 +34,7 @@
 #include "nzbparser.h"
 #include "nzbdownload.h"
 #include "memoryfile.h"
+#include "proconstream.h"
 
 using namespace std;
 
@@ -116,32 +117,18 @@ struct RarVolumeFile {
 
 struct DownloadRarState {
 	RarVolumeFile *f;
-	vrb_p vrb;
+	ProconStream stream;
 	size_t readpos;
 	size_t offset;
 	bool downloaddone;
 	char tmp[1024];
-	pthread_mutex_t mutex;
-	pthread_cond_t cond;
 	DownloadRarState(RarVolumeFile *f) :
 		f(f),
-		vrb(vrb_new(16384, "/tmp/bufferXXXXXX")),
+		stream(16384),
 		readpos(0),
 		offset(0),
 		downloaddone(false)
-	{
-		pthread_mutexattr_t mutexattr;
-		pthread_mutexattr_init(&mutexattr);
-		pthread_mutex_init(&mutex, &mutexattr);
-		pthread_condattr_t condattr;
-		pthread_condattr_init(&condattr);
-		pthread_cond_init(&cond, &condattr);
-	}
-	~DownloadRarState() {
-		pthread_mutex_destroy(&mutex);
-		pthread_cond_destroy(&cond);
-		vrb_destroy(vrb);
-	}
+	{}
 };
 
 map<string,DownloadRarState*> rarfiles;
@@ -178,28 +165,10 @@ __ssize_t rar_read(void *cookie, char *buf, size_t nbytes) {
 	}
 
 	// Gradually read from the vrb to buf.
-	size_t bo = 0;
-	pthread_mutex_lock(&st->mutex);
-	while(bo<nbytes) {
-		if (st->downloaddone) {
-			int len = vrb_data_len(st->vrb);
-			printf("Download done, but %d left\n",len);
-			if (len == 0) {
-				printf("End of Stream found!\n");
-				break;
-			}
-		}
-		while (vrb_data_len(st->vrb) == 0 && !st->downloaddone) {
-			pthread_cond_wait(&st->cond, &st->mutex);
-		}
-		size_t len = min(max((size_t)0,nbytes-bo), (size_t)vrb_data_len(st->vrb));
-		memcpy(buf+bo,vrb_data_ptr(st->vrb),len);
-		vrb_take(st->vrb, len);
-		bo += len;
-
-		pthread_cond_signal(&st->cond);
+	size_t bo = st->stream.read(buf,nbytes);
+	if (bo == 0) {
+		printf("Unrar End Of Stream\n");
 	}
-	pthread_mutex_unlock(&st->mutex);
 
 	// If we are at the header, cache it for later use.
 	if (st->offset < headerbufcap) {
@@ -339,26 +308,12 @@ string guessFilename(string subject) {
 
 void file_download(void *cookie, char *buf, size_t len) {
 	DownloadRarState *s = (DownloadRarState*)cookie;
-	pthread_mutex_lock(&s->mutex);
 	if (len == 0) {
 		printf("Downloading complete!\n");
-		// End of stream
-		s->downloaddone = true;
-		pthread_cond_signal(&s->cond);
-		pthread_mutex_unlock(&s->mutex);
+		s->stream.write_close();
 		return;
 	}
-	int written;
-	while(len > 0) {
-		while (vrb_space_len(s->vrb) == 0) {
-			pthread_cond_wait(&s->cond, &s->mutex);
-		}
-		int written = vrb_put(s->vrb, buf, len);
-		buf += written;
-		len -= written;
-		pthread_cond_signal(&s->cond);
-	}
-	pthread_mutex_unlock(&s->mutex);
+	s->stream.write(buf,len);
 }
 
 void *run_rar(void *arg) {

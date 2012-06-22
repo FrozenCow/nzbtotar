@@ -3,10 +3,8 @@
 
 #include <errno.h>
 #include <cstring>
-extern "C" {
-#include <vrb.h>
-}
 #include "common.h"
+#include "vrb.h"
 
 #define CHECK_STREAM 1
 

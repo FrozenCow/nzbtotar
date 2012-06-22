@@ -12,9 +12,9 @@ LDFLAGS+=-pg
 LDFLAGS+=-O3
 LDFLAGS+=-fPIC
 LDFLAGS+=`pkg-config --libs libxml-2.0`
-LDFLAGS+=-lpthread -lexpat -lvrb -Lunrar -lunrar -Wl,-t -Wl,-v -v
+LDFLAGS+=-lpthread -lexpat -Lunrar -lunrar -lvrb -Wl,-t -Wl,-v -v
 
-OBJ=main.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o
+OBJ=main.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o proconstream.o
 
 all: main
 
