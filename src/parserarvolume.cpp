@@ -60,18 +60,29 @@ bool isAny(char c, const char *s) {
 }
 
 bool isFilenameChar(char c) {
-	return isAlphaNumeric(c) || isAny(c,".-+");
+	return isAlphaNumeric(c) || isAny(c,".-+~");
 }
 
 string guessFilename(string subject) {
+	printf("subject: %s\n",subject.c_str());
+	int besti,bestsize;
+	besti = 0;
+	bestsize = 0;
 	for(int i=0;i<subject.length();i++) {
 		int j;
 		for(j=i;j<subject.length() && isFilenameChar(subject[j]);j++) { }
 		if (j > 4 && isAlphaNumeric(subject[j-1]) && isAlphaNumeric(subject[j-2]) && isAlphaNumeric(subject[j-3])) {
 			if (subject[j-4] == '.' || (subject[j-5] == '.' && isAlphaNumeric(subject[j-4]))) {
-				return subject.substr(i,j-i);
+				int size = j-i;
+				if (size > bestsize) {
+					besti = i;
+					bestsize = size;
+				}
 			}
 		}
+	}
+	if (bestsize > 0) {
+		return subject.substr(besti,bestsize);
 	}
 	return subject;
 }
@@ -91,7 +102,7 @@ string RarVolume::toString() {
 		} else {
 			ss << ".r";
 			char s[3];
-			sprintf(s, "%02d", nr % 100);
+			sprintf(s, "%02d", (nr-1) % 100);
 			ss << s;
 		}
 	} break;
