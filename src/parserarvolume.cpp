@@ -64,7 +64,6 @@ bool isFilenameChar(char c) {
 }
 
 string guessFilename(string subject) {
-	printf("subject: %s\n",subject.c_str());
 	int besti,bestsize;
 	besti = 0;
 	bestsize = 0;
