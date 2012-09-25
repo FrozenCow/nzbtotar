@@ -147,8 +147,8 @@ template<typename T1, typename T2, typename T3, typename T4, typename T5, typena
 #define COMMA ,
 #define SEMICOLON ;
 
-inline void output(string name) { cout << name << endl; }
-writetemplates(output,cout,string name COMMA,cout << name << " " SEMICOLON,cout << endl SEMICOLON)
+inline void output(string name) { cerr << name << endl; }
+writetemplates(output,cerr,string name COMMA,cerr << name << " " SEMICOLON,cerr << endl SEMICOLON)
 
 class CommandContext {
 	istream& is;

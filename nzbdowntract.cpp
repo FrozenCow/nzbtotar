@@ -14,7 +14,68 @@
 #include "command.h"
 #include "mutex.h"
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 using namespace std;
+
+void writeTarHeader(const char *filename, uint64_t size) {
+	struct {
+		char name[100];               /*   0-99 */
+		char mode[8];                 /* 100-107 */
+		char uid[8];                  /* 108-115 */
+		char gid[8];                  /* 116-123 */
+		char size[12];                /* 124-135 */
+		char mtime[12];               /* 136-147 */
+		char chksum[8];               /* 148-155 */
+		char typeflag;                /* 156-156 */
+		char linkname[100];           /* 157-256 */
+		char magic[6];                /* 257-262 */
+		char version[2];              /* 263-264 */
+		char uname[32];               /* 265-296 */
+		char gname[32];               /* 297-328 */
+		char devmajor[8];             /* 329-336 */
+		char devminor[8];             /* 337-344 */
+		char prefix[155];             /* 345-499 */
+		char padding[12];             /* 500-512 (pad to exactly the TAR_BLOCK_SIZE) */
+	} header;
+	command::output("writeTarHeader",filename,size);
+	memset(header.name, 0, 100);
+	strncpy(header.name, filename, 100);
+	sprintf(header.mode, "%07o", 0777);
+	sprintf(header.uid, "%07o", 1000);
+	sprintf(header.gid, "%07o", 1000);
+	sprintf(header.size, "%011lo", size);
+	sprintf(header.mtime, "%011o", 011774322254);
+
+	memset(header.chksum, 0, 8);
+	memset(header.chksum, ' ', 8);
+
+	header.typeflag = '0';
+	memset(header.linkname, 0, 100);
+	memcpy(header.magic, "ustar ", 6);
+	memcpy(header.version, " \0", 2);
+	
+	memset(header.uname, 0, 32);
+	strcpy(header.uname, "bob");
+
+	memset(header.gname, 0, 32);
+	strcpy(header.gname, "bob");
+
+	memset(header.devmajor, 0, 8);
+	memset(header.devminor, 0, 8);
+	memset(header.prefix, 0, 155);
+	memset(header.padding, 0, 12);
+
+	unsigned int chksum = 0;
+	for(int i=0;i<sizeof(header);i++) {
+		chksum += ((char*)&header)[i];
+	}
+	sprintf(header.chksum, "%06o", chksum);
+
+	fwrite(&header, sizeof(header), 1, stdout);
+	fflush(stdout);
+}
 
 struct RarVolumeFile {
 	NzbFile *file;
@@ -35,6 +96,26 @@ struct DownloadRarState {
 		offset(0)
 	{}
 };
+
+command::keyword ERarKeyword(int result) {
+	switch(result) {
+		case 0: return command::keyword("SUCCESS");
+		case ERAR_END_ARCHIVE: return command::keyword("ERAR_END_ARCHIVE");
+		case ERAR_NO_MEMORY: return command::keyword("ERAR_NO_MEMORY");
+		case ERAR_BAD_DATA: return command::keyword("ERAR_BAD_DATA");
+		case ERAR_BAD_ARCHIVE: return command::keyword("ERAR_BAD_ARCHIVE");
+		case ERAR_UNKNOWN_FORMAT: return command::keyword("ERAR_UNKNOWN_FORMAT");
+		case ERAR_EOPEN: return command::keyword("ERAR_EOPEN");
+		case ERAR_ECREATE: return command::keyword("ERAR_ECREATE");
+		case ERAR_ECLOSE: return command::keyword("ERAR_ECLOSE");
+		case ERAR_EREAD: return command::keyword("ERAR_EREAD");
+		case ERAR_EWRITE: return command::keyword("ERAR_EWRITE");
+		case ERAR_SMALL_BUF: return command::keyword("ERAR_SMALL_BUF");
+		case ERAR_UNKNOWN: return command::keyword("ERAR_UNKNOWN");
+		case ERAR_MISSING_PASSWORD: return command::keyword("ERAR_MISSING_PASSWORD");
+		default: return command::keyword("UNKNOWN");
+	}
+}
 
 map<string,DownloadRarState*> rarfiles;
 MutexCond rarfilesMC;
@@ -128,19 +209,17 @@ void extractrar(char *filename, char *destination) {
 	int status;
 	status = RARReadHeader(h, &header);
 	while (status == 0) {
-		command::output("extracting", header.FileName, header.UnpSize);
+		uint64_t size = header.UnpSize;//(uint64_t)header.UnpSizeHigh << 4 || (uint64_t)header.UnpSize;
+		command::output("extracting_file",header.FileName,size);
+		writeTarHeader(header.FileName, size);
 		status = RARProcessFile(h, RAR_EXTRACT, destination, NULL);
+		command::output("extracted_file",ERarKeyword(status));
 		if (status != 0) { break; }
-		command::output("extracted", header.FileName);
 		status = RARReadHeader(h, &header);
 	}
 }
 
 FILE *rar_fopen(const char *filename, const char *mode) {
-	// Rar-volumes are opened as read-only, extracting files are opened as write.
-	if (strcmp(mode,"r") != 0) {
-		return fopen(filename,mode);
-	}
 	_IO_cookie_io_functions_t fns;
 	fns.read = rar_read;
 	fns.write = rar_write;
@@ -154,6 +233,43 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 	rarfilesMC.unlock();
 	DownloadRarState *state = (*it).second;
 	return fopencookie(state, mode, fns);
+}
+
+__ssize_t destination_read(void *cookie, char *buf, size_t nbytes) {
+	command::output("destination_read");
+	DIE();
+	return 0;
+}
+ssize_t destination_write(void *cookie, const char *buf, size_t n) {
+	return fwrite((const void*)buf,sizeof(char),n,stdout);
+}
+int destination_seek(void *cookie, _IO_off64_t *__pos, int __w) {
+	command::output("destination_seek");
+	DIE();
+	return 0;
+}
+int destination_close(void *cookie) {
+	command::output("destination_close");
+	return 0;
+}
+
+FILE *destination_fopen(const char *filename, const char *mode) {
+	command::output("destination_fopen",filename,mode);
+	_IO_cookie_io_functions_t fns;
+	fns.read = destination_read;
+	fns.write = destination_write;
+	fns.seek = destination_seek;
+	fns.close = destination_close;
+	return fopencookie(NULL, mode, fns);
+}
+
+FILE *custom_fopen(const char *filename, const char *mode) {
+	if (strcmp(mode,"r") == 0) // Rar-volumes are opened as read-only.
+		return rar_fopen(filename, mode);
+	else if (strcmp(mode,"w") == 0) // Destination files are opened as write-only.
+		return destination_fopen(filename, mode);
+	else // For other files (are there any others?) don't hook io-operations.
+		return fopen(filename,mode);
 }
 
 void file_download(void *cookie, char *buf, size_t len) {
@@ -176,7 +292,7 @@ void *rarthread_run(void *arg) {
 	std::copy(filename.begin(), filename.end(), arcname);
 	arcname[filename.length()] = '\0';
 
-	RARSetFopenCallback(rar_fopen, NULL);
+	RARSetFopenCallback(custom_fopen, NULL);
 	extractrar(arcname,(char*)destination.c_str());
 	
 	return NULL;
@@ -233,7 +349,7 @@ int main(int argc, char * const *args) {
 		exit(1);
 	}
 
-	// 
+	command::output("parsing",nzbfilename);
 	Nzb nzb = ParseNZB(nzbfilename.c_str());
 
 	list<RarVolumeFile*> rarlist;
@@ -268,9 +384,14 @@ int main(int argc, char * const *args) {
 	settings.username = username;
 	settings.password = password;
 
+	command::output("settings",hostname,port,username,password);
+
+	command::output("connecting");
 	NntpConnection *connection = nntp_connect(settings);
 	DownloadCallback cb;
 	cb.f = file_download;
+
+	command::output("starting");
 
 	// Download rar-files from rarlist.
 	for(it = rarlist.begin();it != rarlist.end();it++) {
