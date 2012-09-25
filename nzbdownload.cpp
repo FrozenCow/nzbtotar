@@ -371,13 +371,13 @@ NntpConnection *nntp_connect(NntpServerSettings &settings) {
 		DIE();
 	}
 	writeline(fd,"AUTHINFO USER "+settings.username);
-	if (readstatus(s) != 381) {
-		close(fd);
-		DIE();
+	int authstatus = readstatus(s);
+	if (authstatus == 381) {
+		writeline(fd,"AUTHINFO PASS "+settings.password);
+		authstatus = readstatus(s);
 	}
-	writeline(fd,"AUTHINFO PASS "+settings.password);
-	int status = readstatus(s);
-	if (status != 281) {
+
+	if (authstatus != 281) {
 		close(fd);
 		DIE();
 	}
