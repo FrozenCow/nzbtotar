@@ -191,6 +191,15 @@ void readHeaders(bufferedstream &s) {
 		const section sc = readheader(s, header);
 		if (header.name.len == 0) {
 			s.release(sc);
+
+			// Skip any trailing spaces, \r or \n for bad-formed yenc articles
+			while(1) {
+				s.ensure(1);
+				char c = s.ptr()[0];
+				if (!iswhitespace(c)) { break; }
+				s.take(1);
+			}
+
 			break;
 		}
 		//printf("%.*s: %.*s\n",header.name.len,header.name.ptr, header.value.len,header.value.ptr);
