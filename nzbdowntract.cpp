@@ -57,10 +57,10 @@ void writeTarHeader(const char *filename, uint64_t size) {
 	memcpy(header.version, " \0", 2);
 	
 	memset(header.uname, 0, 32);
-	strcpy(header.uname, "bob");
+	strcpy(header.uname, "");
 
 	memset(header.gname, 0, 32);
-	strcpy(header.gname, "bob");
+	strcpy(header.gname, "");
 
 	memset(header.devmajor, 0, 8);
 	memset(header.devminor, 0, 8);
