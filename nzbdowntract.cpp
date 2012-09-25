@@ -236,7 +236,6 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 }
 
 __ssize_t destination_read(void *cookie, char *buf, size_t nbytes) {
-	command::output("destination_read");
 	DIE();
 	return 0;
 }
@@ -244,17 +243,14 @@ ssize_t destination_write(void *cookie, const char *buf, size_t n) {
 	return fwrite((const void*)buf,sizeof(char),n,stdout);
 }
 int destination_seek(void *cookie, _IO_off64_t *__pos, int __w) {
-	command::output("destination_seek");
 	DIE();
 	return 0;
 }
 int destination_close(void *cookie) {
-	command::output("destination_close");
 	return 0;
 }
 
 FILE *destination_fopen(const char *filename, const char *mode) {
-	command::output("destination_fopen",filename,mode);
 	_IO_cookie_io_functions_t fns;
 	fns.read = destination_read;
 	fns.write = destination_write;
@@ -282,8 +278,6 @@ void file_download(void *cookie, char *buf, size_t len) {
 	s->stream.write(buf,len);
 }
 
-string destination;
-
 void *rarthread_run(void *arg) {
 	RarVolumeFile *rarfile = (RarVolumeFile*)arg;
 	string filename = rarfile->volume.toString();
@@ -293,7 +287,8 @@ void *rarthread_run(void *arg) {
 	arcname[filename.length()] = '\0';
 
 	RARSetFopenCallback(custom_fopen, NULL);
-	extractrar(arcname,(char*)destination.c_str());
+	char empty[1] = "";
+	extractrar(arcname,empty);
 	
 	return NULL;
 }
@@ -305,7 +300,6 @@ int main(int argc, char * const *args) {
 		{"port",		required_argument,	0,	'p'},
 		{"username",	required_argument,	0,	'u'},
 		{"password",	required_argument,	0,	's'},
-		{"destination",	required_argument,	0,	'd'},
 		{0, 0, 0, 0}
 	};
 
@@ -324,7 +318,6 @@ int main(int argc, char * const *args) {
 			case 'p': port = atoi(optarg); break;
 			case 'u': username = string(optarg); break;
 			case 's': password = string(optarg); break;
-			case 'd': destination = string(optarg); break;
 			default: DIE(); break;
 		}
 	}
@@ -344,7 +337,6 @@ int main(int argc, char * const *args) {
 			"  -p, --port        \n"
 			"  -u, --username    \n"
 			"  -s, --password    \n"
-			"  -d, --destination \n"
 		, args[0]);
 		exit(1);
 	}
