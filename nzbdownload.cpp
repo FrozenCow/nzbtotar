@@ -202,7 +202,6 @@ void readHeaders(bufferedstream &s) {
 
 			break;
 		}
-		//printf("%.*s: %.*s\n",header.name.len,header.name.ptr, header.value.len,header.value.ptr);
 		s.release(sc);
 	}
 }

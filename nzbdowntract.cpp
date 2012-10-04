@@ -37,7 +37,8 @@ void writeTarHeader(const char *filename, uint64_t size) {
 		char devmajor[8];             /* 329-336 */
 		char devminor[8];             /* 337-344 */
 		char prefix[155];             /* 345-499 */
-		char padding[12];             /* 500-512 (pad to exactly the TAR_BLOCK_SIZE) */
+		char padding[8];             /* 500-512 (pad to exactly the TAR_BLOCK_SIZE) */
+		char magic2[4];
 	} header;
 	command::output("writeTarHeader",filename,size);
 	memset(header.name, 0, 100);
@@ -65,7 +66,8 @@ void writeTarHeader(const char *filename, uint64_t size) {
 	memset(header.devmajor, 0, 8);
 	memset(header.devminor, 0, 8);
 	memset(header.prefix, 0, 155);
-	memset(header.padding, 0, 12);
+	memset(header.padding, 0, 8);
+	strcpy(header.magic2, "tar");
 
 	unsigned int chksum = 0;
 	for(int i=0;i<sizeof(header);i++) {
