@@ -19,6 +19,8 @@
 
 using namespace std;
 
+const char zeroes[512] = { 0 };
+
 void writeTarHeader(const char *filename, uint64_t size) {
 	struct {
 		char name[100];               /*   0-99 */
@@ -237,11 +239,17 @@ FILE *rar_fopen(const char *filename, const char *mode) {
 	return fopencookie(state, mode, fns);
 }
 
+struct destinationcookie {
+	uint64_t writtenBytes;
+};
+
 __ssize_t destination_read(void *cookie, char *buf, size_t nbytes) {
 	DIE();
 	return 0;
 }
 ssize_t destination_write(void *cookie, const char *buf, size_t n) {
+	destinationcookie *c = (destinationcookie*)cookie;
+	c->writtenBytes += n;
 	return fwrite((const void*)buf,sizeof(char),n,stdout);
 }
 int destination_seek(void *cookie, _IO_off64_t *__pos, int __w) {
@@ -249,6 +257,11 @@ int destination_seek(void *cookie, _IO_off64_t *__pos, int __w) {
 	return 0;
 }
 int destination_close(void *cookie) {
+	destinationcookie *c = (destinationcookie*)cookie;
+
+	// Fill up the rest of 512 bytes with zeroes (for tar format)
+	int leftover = c->writtenBytes % 512;
+	fwrite(zeroes,sizeof(char),leftover,stdout);
 	return 0;
 }
 
@@ -258,7 +271,9 @@ FILE *destination_fopen(const char *filename, const char *mode) {
 	fns.write = destination_write;
 	fns.seek = destination_seek;
 	fns.close = destination_close;
-	return fopencookie(NULL, mode, fns);
+	destinationcookie *c = new destinationcookie();
+	c->writtenBytes = 0;
+	return fopencookie(c, mode, fns);
 }
 
 FILE *custom_fopen(const char *filename, const char *mode) {
@@ -291,6 +306,10 @@ void *rarthread_run(void *arg) {
 	RARSetFopenCallback(custom_fopen, NULL);
 	char empty[1] = "";
 	extractrar(arcname,empty);
+
+	// Write end of tar: 2 zeroed ustar-headers
+	fwrite(zeroes,sizeof(char),512,stdout);
+	fwrite(zeroes,sizeof(char),512,stdout);
 	
 	return NULL;
 }

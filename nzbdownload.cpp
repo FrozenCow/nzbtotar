@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include "common.h"
+#include "command.h"
 #include "bufferedstream.h"
 #include "crc32.h"
 
@@ -386,6 +387,7 @@ NntpConnection *nntp_connect(NntpServerSettings &settings) {
 	}
 
 	if (authstatus != 281) {
+		command::output("authentication_failed", authstatus);
 		close(fd);
 		DIE();
 	}
