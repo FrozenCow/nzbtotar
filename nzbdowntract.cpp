@@ -382,6 +382,9 @@ int main(int argc, char * const *args) {
 		rarlist.insert(it, new RarVolumeFile(nzb.files[i],ovolume.value()));
 	}
 
+	if (rarlist.size() == 0) {
+		command::output("error", "No rar file found");
+	}
 
 	// Start thread to extract rar-files.
 	pthread_t rarthread;
