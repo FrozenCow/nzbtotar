@@ -15,9 +15,9 @@ LDFLAGS+=`pkg-config --libs libxml-2.0`
 LDFLAGS+=-lpthread -lexpat -Lunrar -lunrar -lvrb
 #LDFLAGS+=-Wl,-t -Wl,-v -v
 
-OBJ=nzbdowntract.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o proconstream.o parserarvolume.o
+OBJ=nzbtotar.o crc32.o nzbparser.o nzbdownload.o memoryfile.o common.o proconstream.o parserarvolume.o
 
-all: nzbdowntract
+all: nzbtotar
 
 %.o: %.cpp
 		$(CC) -c -o $@ $< $(CFLAGS)
@@ -28,7 +28,7 @@ unrar/libunrar.a:
 #nzbfetch/libnzbfetch.a:
 #	$(MAKE) -C nzbfetch staticlib
 
-nzbdowntract: unrar/libunrar.a $(OBJ)
+nzbtotar: unrar/libunrar.a $(OBJ)
 	$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
 clean:

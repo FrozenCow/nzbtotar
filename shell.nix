@@ -10,7 +10,7 @@ let
 in
 with pkgs;
 stdenv.mkDerivation rec {
-  name = "nzbdowntract-${version}";
+  name = "nzbtotar-${version}";
   version = "0.0.1";
 
   buildInputs = [ pkgconfig libxml2 expat vrb ];
